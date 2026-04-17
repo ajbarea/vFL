@@ -6,22 +6,27 @@ import json
 import logging
 from typing import Any
 
-from velocity.attacks import VALID_ATTACKS, AttackResult
+from velocity.attacks import VALID_ATTACKS
 from velocity.strategy import Strategy
 
 logger = logging.getLogger(__name__)
 
+
 # ---------------------------------------------------------------------------
 # Lazy import of the Rust extension so that the pure-Python package is still
-# importable even if the native extension has not been compiled yet.
+# importable even if the native extension has not been compiled yet. The
+# compiled symbols are described in `_core.pyi` for static analyzers.
 # ---------------------------------------------------------------------------
-try:
-    from velocity import _core as _rust  # type: ignore[attr-defined]
+def _load_rust_core() -> tuple[Any, bool]:
+    try:
+        from velocity import _core as mod
 
-    _RUST_AVAILABLE = True
-except ImportError:  # pragma: no cover
-    _rust = None  # type: ignore[assignment]
-    _RUST_AVAILABLE = False
+        return mod, True
+    except ImportError:  # pragma: no cover
+        return None, False
+
+
+_rust, _RUST_AVAILABLE = _load_rust_core()
 
 # Default layer shapes used when the user does not specify them explicitly.
 # These approximate a tiny two-layer network (useful for testing / demos).
@@ -167,8 +172,7 @@ class VelocityServer:
         """
         if attack_type not in VALID_ATTACKS:
             raise ValueError(
-                f"Unknown attack type: '{attack_type}'. "
-                f"Valid types: {sorted(VALID_ATTACKS)}"
+                f"Unknown attack type: '{attack_type}'. Valid types: {sorted(VALID_ATTACKS)}"
             )
 
         kwargs: dict[str, Any] = {
@@ -273,6 +277,7 @@ class VelocityServer:
 # Pure-Python fallback orchestrator
 # ---------------------------------------------------------------------------
 
+
 class _PurePythonOrchestrator:
     """Minimal pure-Python orchestrator used when the Rust extension is absent."""
 
@@ -318,13 +323,10 @@ class _PurePythonOrchestrator:
         ]
         for name, size in self.layer_shapes.items():
             self.global_weights_data[name] = [
-                sum(c[name][i] for c in client_weights) / num_clients
-                for i in range(size)
+                sum(c[name][i] for c in client_weights) / num_clients for i in range(size)
             ]
 
-        global_loss = sum(
-            v ** 2 for vals in self.global_weights_data.values() for v in vals
-        ) ** 0.5
+        global_loss = sum(v**2 for vals in self.global_weights_data.values() for v in vals) ** 0.5
 
         attack_results = [{"attack_type": a["attack_type"]} for a in self._pending_attacks]
         self._pending_attacks.clear()
