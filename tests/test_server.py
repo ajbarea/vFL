@@ -1,7 +1,6 @@
 """Tests for VelocityServer (pure-Python fallback path)."""
 
 import pytest
-
 from velocity.server import VelocityServer
 from velocity.strategy import Strategy
 

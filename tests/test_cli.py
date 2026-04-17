@@ -1,9 +1,7 @@
 import json
 
 from typer.testing import CliRunner
-
 from velocity.cli import app
-
 
 runner = CliRunner()
 

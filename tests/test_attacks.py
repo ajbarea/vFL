@@ -1,7 +1,8 @@
 """Tests for AttackResult and attack validation helpers."""
 
-import pytest
+from dataclasses import FrozenInstanceError
 
+import pytest
 from velocity.attacks import VALID_ATTACKS, AttackResult
 
 
@@ -40,5 +41,5 @@ def test_valid_attacks_contains_expected():
 
 def test_attack_result_is_frozen():
     result = AttackResult("model_poisoning", 1, 0.1, "desc")
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         result.severity = 0.9  # type: ignore[misc]

@@ -1,7 +1,5 @@
 """Tests for the Strategy enum."""
 
-import pytest
-
 from velocity.strategy import Strategy
 
 
