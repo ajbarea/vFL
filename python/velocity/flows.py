@@ -3,18 +3,15 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from prefect import flow, get_run_logger, task
-
-if TYPE_CHECKING:
-    from velocity.server import VelocityServer
 
 logger = logging.getLogger(__name__)
 
 
 @task(name="fl-round", retries=2, retry_delay_seconds=5)
-def run_fl_round(server: VelocityServer, round_num: int) -> dict[str, Any]:
+def run_fl_round(server: Any, round_num: int) -> dict[str, Any]:
     """Execute a single federated learning round inside a Prefect task.
 
     Args:
@@ -38,7 +35,7 @@ def run_fl_round(server: VelocityServer, round_num: int) -> dict[str, Any]:
 
 
 @flow(name="VelocityFL-Training")
-def federated_training_flow(server: VelocityServer) -> list[dict[str, Any]]:
+def federated_training_flow(server: Any) -> list[dict[str, Any]]:
     """Top-level Prefect flow that orchestrates all FL training rounds.
 
     Args:
