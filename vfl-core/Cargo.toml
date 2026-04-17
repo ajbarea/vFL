@@ -1,0 +1,22 @@
+[package]
+name = "vfl-core"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance Rust core for VelocityFL federated learning orchestration"
+license = "MIT"
+
+[lib]
+name = "vfl_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.8"
+rand_distr = "0.4"
+# safetensors is used for fast, secure model weight serialisation (roadmap: checkpoint I/O)
+safetensors = "0.4"
+
+[dev-dependencies]
+approx = "0.5"

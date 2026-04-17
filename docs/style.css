@@ -1,0 +1,13 @@
+:root {
+  --md-primary-fg-color: #0f766e;
+  --md-accent-fg-color: #7c3aed;
+}
+
+.md-header {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.md-typeset h1,
+.md-typeset h2 {
+  letter-spacing: -0.01em;
+}
