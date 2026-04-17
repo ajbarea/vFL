@@ -1,5 +1,6 @@
 /// Aggregation strategy for federated learning rounds.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[allow(clippy::enum_variant_names)] // Public API — variant names mirror FL literature.
 pub enum Strategy {
     FedAvg,
     FedProx { mu: f64 },
@@ -33,9 +34,7 @@ pub fn aggregate(
 }
 
 /// Weighted average of client weights, weighted by the number of local training samples.
-fn fedavg(
-    updates: &[ClientUpdate],
-) -> Result<std::collections::HashMap<String, Vec<f32>>, String> {
+fn fedavg(updates: &[ClientUpdate]) -> Result<std::collections::HashMap<String, Vec<f32>>, String> {
     let total_samples: usize = updates.iter().map(|u| u.num_samples).sum();
     if total_samples == 0 {
         return Err("Total sample count is zero".to_string());
@@ -45,23 +44,14 @@ fn fedavg(
     let mut global: std::collections::HashMap<String, Vec<f32>> = std::collections::HashMap::new();
 
     for name in &layer_names {
-        let len = updates[0]
-            .weights
-            .get(name)
-            .map(|v| v.len())
-            .unwrap_or(0);
+        let len = updates[0].weights.get(name).map(|v| v.len()).unwrap_or(0);
 
         let mut agg = vec![0.0f32; len];
 
         for update in updates {
             let w = match update.weights.get(name) {
                 Some(v) => v,
-                None => {
-                    return Err(format!(
-                        "Client update missing layer '{}'",
-                        name
-                    ))
-                }
+                None => return Err(format!("Client update missing layer '{}'", name)),
             };
             if w.len() != len {
                 return Err(format!(
@@ -91,22 +81,18 @@ fn fed_median(
     let mut global: std::collections::HashMap<String, Vec<f32>> = std::collections::HashMap::new();
 
     for name in &layer_names {
-        let len = updates[0]
-            .weights
-            .get(name)
-            .map(|v| v.len())
-            .unwrap_or(0);
+        let len = updates[0].weights.get(name).map(|v| v.len()).unwrap_or(0);
 
         let mut agg = vec![0.0f32; len];
 
-        for i in 0..len {
+        for (i, slot) in agg.iter_mut().enumerate() {
             let mut values: Vec<f32> = updates
                 .iter()
                 .filter_map(|u| u.weights.get(name).and_then(|v| v.get(i)).copied())
                 .collect();
             values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             let mid = values.len() / 2;
-            agg[i] = if values.len() % 2 == 0 {
+            *slot = if values.len().is_multiple_of(2) {
                 (values[mid - 1] + values[mid]) / 2.0
             } else {
                 values[mid]
