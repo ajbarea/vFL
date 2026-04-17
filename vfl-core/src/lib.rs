@@ -5,7 +5,7 @@
 
 mod orchestrator;
 mod security;
-mod strategy;
+pub mod strategy;
 
 use std::collections::HashMap;
 

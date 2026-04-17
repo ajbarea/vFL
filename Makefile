@@ -11,7 +11,7 @@
 ## the tooling could not auto-resolve.
 ##
 
-.PHONY: help check-env sync build docs fix lint lint-py lint-rs test test-py test-rs validate ci clean
+.PHONY: help check-env sync build docs fix lint lint-py lint-rs test test-py test-rs bench validate ci clean
 .DEFAULT_GOAL := help
 
 DEV := uv run python scripts/dev.py
@@ -64,6 +64,9 @@ test-py:                ## pytest tests/ -v
 
 test-rs:                ## cargo test --all
 	@$(DEV) test-rs
+
+bench:                  ## Run Rust divan + Python pytest-benchmark macro benches
+	@$(DEV) bench
 
 # ---------------------------------------------------------------------------
 # Combined workflows

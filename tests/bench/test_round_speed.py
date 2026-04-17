@@ -1,0 +1,142 @@
+"""Macro-benchmarks for the aggregation hot path, measured through the
+Python surface the user actually calls.
+
+Every "round" in a real FL workload is: clients produce weights (user-side,
+out of our hands) -> we aggregate. So what we care about measuring is the
+aggregation step, from the moment pre-built client updates arrive. That's
+what these tests time — setup (weight materialisation, orchestrator
+construction) is outside `benchmark(...)`.
+
+Two sides of the comparison:
+
+* **rust** — `_rust.Orchestrator.run_round(updates)` with `_rust.ClientUpdate`
+  objects. Crosses the PyO3 boundary once per call; real users see this path.
+* **python** — pure-Python FedAvg on plain dicts, mirroring the algorithm in
+  `velocity.server._PurePythonOrchestrator`. This is the fallback every
+  `docs` CI job and Rust-toolchain-less environment actually runs.
+
+Run locally:
+    uv run maturin develop --release
+    make bench
+
+The `large` tier is deliberately skipped for the pure-Python bench — one
+iteration takes 2+ minutes, which is itself the claim (see `docs/benchmarks.md`).
+"""
+
+from __future__ import annotations
+
+import random
+from typing import Any
+
+import pytest
+from velocity import Strategy
+from velocity.server import _RUST_AVAILABLE, _rust
+
+TIERS: dict[str, dict[str, int]] = {
+    "tiny": {
+        "fc1.weight": 512,
+        "fc1.bias": 64,
+        "fc2.weight": 384,
+        "fc2.bias": 10,
+    },
+    "medium": {f"layer{i}.weight": 100_000 for i in range(10)},
+    "large": {f"block{i}.weight": 625_000 for i in range(16)},
+}
+
+CLIENTS = 10
+SEED = 0xBEEF
+
+
+def _seeded_weights(size: int, rng: random.Random) -> list[float]:
+    return [rng.gauss(0.0, 0.1) for _ in range(size)]
+
+
+def _build_rust_updates(tier: str) -> list[Any]:
+    rng = random.Random(SEED)
+    return [
+        _rust.ClientUpdate(
+            num_samples=100,
+            weights={name: _seeded_weights(size, rng) for name, size in TIERS[tier].items()},
+        )
+        for _ in range(CLIENTS)
+    ]
+
+
+def _build_python_updates(tier: str) -> list[dict[str, Any]]:
+    rng = random.Random(SEED)
+    return [
+        {
+            "num_samples": 100,
+            "weights": {name: _seeded_weights(size, rng) for name, size in TIERS[tier].items()},
+        }
+        for _ in range(CLIENTS)
+    ]
+
+
+def _python_fed_avg(
+    updates: list[dict[str, Any]], layer_names: list[str]
+) -> dict[str, list[float]]:
+    """Pure-Python sample-weighted average — mirrors the fallback's algorithm."""
+    total = sum(u["num_samples"] for u in updates)
+    out: dict[str, list[float]] = {}
+    for name in layer_names:
+        dim = len(updates[0]["weights"][name])
+        agg = [0.0] * dim
+        for u in updates:
+            scale = u["num_samples"] / total
+            w = u["weights"][name]
+            for i in range(dim):
+                agg[i] += w[i] * scale
+        out[name] = agg
+    return out
+
+
+def _make_rust_strategy(strategy: Strategy) -> Any:
+    if strategy is Strategy.FedAvg:
+        return _rust.Strategy.fed_avg()
+    if strategy is Strategy.FedProx:
+        return _rust.Strategy.fed_prox(0.01)
+    if strategy is Strategy.FedMedian:
+        return _rust.Strategy.fed_median()
+    raise ValueError(strategy)
+
+
+def _make_rust_orchestrator(tier: str, strategy: Strategy) -> Any:
+    return _rust.Orchestrator(
+        model_id="bench/model",
+        dataset="bench/dataset",
+        strategy=_make_rust_strategy(strategy),
+        storage="local://bench",
+        min_clients=CLIENTS,
+        rounds=1,
+        layer_shapes=TIERS[tier],
+    )
+
+
+STRATEGIES = [Strategy.FedAvg, Strategy.FedProx, Strategy.FedMedian]
+
+
+@pytest.mark.skipif(
+    not _RUST_AVAILABLE,
+    reason="Rust extension not built; run `maturin develop --release`",
+)
+@pytest.mark.parametrize("strategy", STRATEGIES, ids=lambda s: s.value)
+@pytest.mark.parametrize("tier", list(TIERS.keys()))
+def test_rust_aggregate(benchmark: Any, tier: str, strategy: Strategy) -> None:
+    orch = _make_rust_orchestrator(tier, strategy)
+    updates = _build_rust_updates(tier)
+    benchmark.group = f"aggregate/{tier}"
+    benchmark.extra_info.update({"tier": tier, "strategy": strategy.value, "path": "rust"})
+    benchmark(lambda: orch.run_round(updates))
+
+
+# Pure-Python aggregation at the `large` tier (10M params x 10 clients) takes
+# several minutes per iteration — which is the point, and what the docs page
+# calls out. Skipping here keeps the bench suite under a few minutes total.
+@pytest.mark.parametrize("tier", ["tiny", "medium"])
+def test_python_aggregate(benchmark: Any, tier: str) -> None:
+    updates = _build_python_updates(tier)
+    layer_names = list(TIERS[tier].keys())
+    benchmark.group = f"aggregate/{tier}"
+    benchmark.extra_info.update({"tier": tier, "strategy": "fed_avg", "path": "python"})
+    benchmark(lambda: _python_fed_avg(updates, layer_names))
