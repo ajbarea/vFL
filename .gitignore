@@ -41,3 +41,10 @@ site/
 
 # vFL dev runner logs (scripts/dev.py)
 logs/
+
+# Test / coverage artifacts
+.coverage
+.coverage.*
+coverage.xml
+junit.xml
+htmlcov/
