@@ -64,7 +64,10 @@ impl PyClientUpdate {
     ///     weights: Dict mapping layer names to flat lists of float32 weights.
     #[new]
     fn new(num_samples: usize, weights: HashMap<String, Vec<f32>>) -> Self {
-        PyClientUpdate(strategy::ClientUpdate { num_samples, weights })
+        PyClientUpdate(strategy::ClientUpdate {
+            num_samples,
+            weights,
+        })
     }
 
     #[getter]
@@ -210,7 +213,10 @@ impl PyOrchestrator {
     ///
     /// Returns:
     ///     :class:`RoundSummary` for the completed round.
-    fn run_round(&mut self, client_updates: Vec<PyRef<PyClientUpdate>>) -> PyResult<PyRoundSummary> {
+    fn run_round(
+        &mut self,
+        client_updates: Vec<PyRef<PyClientUpdate>>,
+    ) -> PyResult<PyRoundSummary> {
         let updates: Vec<strategy::ClientUpdate> =
             client_updates.iter().map(|u| u.0.clone()).collect();
         self.0
@@ -226,8 +232,7 @@ impl PyOrchestrator {
 
     /// JSON-serialised experiment history (all completed round summaries).
     fn history_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.0.history)
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+        serde_json::to_string(&self.0.history).map_err(|e| PyRuntimeError::new_err(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -275,7 +280,8 @@ fn apply_gaussian_noise(
     std_dev: f64,
 ) -> PyResult<(HashMap<String, Vec<f32>>, String)> {
     let result = security::simulate_gaussian_noise(&mut weights, std_dev);
-    let json = serde_json::to_string(&result).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    let json =
+        serde_json::to_string(&result).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
     Ok((weights, json))
 }
 
@@ -283,9 +289,9 @@ fn apply_gaussian_noise(
 // Module
 // ---------------------------------------------------------------------------
 
-/// vfl_core — Rust-backed VelocityFL engine.
+/// velocity._core — Rust-backed VelocityFL engine.
 #[pymodule]
-fn vfl_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyStrategy>()?;
     m.add_class::<PyClientUpdate>()?;
     m.add_class::<PyRoundSummary>()?;

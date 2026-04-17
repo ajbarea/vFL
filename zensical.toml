@@ -14,9 +14,11 @@ nav = [
   { "Strategies" = "strategies.md" },
   { "Attacks" = "attacks.md" },
   { "API Reference" = "api.md" },
+  { "Skills" = "skills.md" },
 ]
 
 extra_css = ["style.css"]
+extra_javascript = ["javascripts/reveal.js"]
 
 [project.theme]
 name = "material"
@@ -34,13 +36,13 @@ features = [
 
 [[project.theme.palette]]
 scheme = "slate"
-primary = "teal"
-accent = "deep-purple"
+primary = "deep-purple"
+accent = "purple"
 
 [[project.theme.palette]]
 scheme = "default"
-primary = "teal"
-accent = "deep-purple"
+primary = "deep-purple"
+accent = "purple"
 
 [project.theme.font]
 text = "Inter"

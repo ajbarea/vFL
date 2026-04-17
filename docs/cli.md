@@ -1,29 +1,102 @@
 # CLI Reference
 
-VelocityFL ships with a Typer-based CLI.
+VelocityFL ships a [Typer](https://typer.tiangolo.com/)-based CLI called `velocity`. After `uv sync` the command is available via `uv run velocity`, or directly on your `PATH` when the venv is activated.
 
 ```bash
-velocity --help
+uv run velocity --help
 ```
 
-## Commands
+All subcommands emit **JSON on stdout** and logs on stderr, so they pipe cleanly into `jq`, files, or downstream tooling.
 
-### `velocity version`
+---
+
+## `velocity version`
+
 Prints the installed package version.
 
-### `velocity strategies`
-Prints supported aggregation strategies.
-
-### `velocity run`
-Runs a local orchestrated experiment.
-
 ```bash
-velocity run --model-id meta-llama/Llama-3-8B --dataset huggingface/ultrafeedback --rounds 5 --min-clients 10
+uv run velocity version
+# 0.1.0
 ```
 
-### `velocity simulate-attack`
-Registers an attack and runs a single validation round.
+---
+
+## `velocity strategies`
+
+Lists supported aggregation strategies. See [Strategies](strategies.md) for when to use each.
 
 ```bash
-velocity simulate-attack model_poisoning --intensity 0.2
+uv run velocity strategies
+# FedAvg
+# FedProx
+# FedMedian
+```
+
+---
+
+## `velocity run`
+
+Runs a local orchestrated experiment and prints a JSON array of round summaries.
+
+```bash
+uv run velocity run \
+    --model-id meta-llama/Llama-3-8B \
+    --dataset huggingface/ultrafeedback \
+    --strategy FedAvg \
+    --rounds 5 \
+    --min-clients 10
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--model-id` | `str` | *required* | Hugging Face model identifier. |
+| `--dataset` | `str` | *required* | Dataset name or path (HF Hub or local). |
+| `--strategy` | `str` | `FedAvg` | One of `FedAvg`, `FedProx`, `FedMedian` (case-insensitive). |
+| `--storage` | `str` | `local://checkpoints` | Checkpoint storage URI. |
+| `--min-clients` | `int ≥ 1` | `1` | Minimum clients required per round. |
+| `--rounds` | `int ≥ 1` | `1` | Number of federated rounds. |
+
+**Output** — a JSON array; each element has `round`, `num_clients`, `global_loss`, `attack_results`.
+
+---
+
+## `velocity simulate-attack`
+
+Registers one attack and runs a single round so you can observe its impact without standing up a full experiment. See [Attacks](attacks.md) for the full catalog.
+
+```bash
+uv run velocity simulate-attack model_poisoning --intensity 0.2
+uv run velocity simulate-attack sybil_nodes --count 5
+uv run velocity simulate-attack gaussian_noise --intensity 0.1
+uv run velocity simulate-attack label_flipping --fraction 0.25
+```
+
+| Argument / Option | Type | Default | Description |
+|---|---|---|---|
+| `ATTACK_TYPE` (positional) | `str` | *required* | `model_poisoning` \| `sybil_nodes` \| `gaussian_noise` \| `label_flipping`. |
+| `--model-id` | `str` | `demo/model` | Model identifier for the one-round probe. |
+| `--dataset` | `str` | `demo/dataset` | Dataset identifier for the probe. |
+| `--strategy` | `str` | `FedAvg` | Aggregation strategy. |
+| `--min-clients` | `int ≥ 1` | `1` | Minimum clients for the probe round. |
+| `--intensity` | `float ≥ 0` | `0.1` | Used by `model_poisoning` and `gaussian_noise`. |
+| `--count` | `int ≥ 1` | `1` | Used by `sybil_nodes`. |
+| `--fraction` | `float ∈ [0,1]` | `0.1` | Used by `label_flipping`. |
+
+**Output** — a single JSON object describing the probe round.
+
+---
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Command completed. |
+| `2` | Invalid argument (e.g. unknown strategy, unknown attack). |
+| Other | Underlying error — consult stderr. |
+
+## Piping to jq
+
+```bash
+uv run velocity run --model-id demo/model --dataset demo/dataset --rounds 3 --min-clients 2 \
+    | jq '.[] | {round, loss: .global_loss}'
 ```

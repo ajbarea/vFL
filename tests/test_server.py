@@ -1,8 +1,9 @@
 """Tests for VelocityServer (pure-Python fallback path)."""
 
-import pytest
+import json
 
-from velocity.server import VelocityServer
+import pytest
+from velocity.server import VelocityServer, _PurePythonOrchestrator
 from velocity.strategy import Strategy
 
 
@@ -87,3 +88,53 @@ def test_different_strategies():
 def test_default_layer_shapes():
     server = VelocityServer(model_id="m", dataset="d")
     assert server.layer_shapes  # not empty
+
+
+# ---------------------------------------------------------------------------
+# _PurePythonOrchestrator — the fallback used when velocity._core is absent
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def pure_orc():
+    return _PurePythonOrchestrator(
+        model_id="t", min_clients=2, rounds=3, layer_shapes={"w": 4, "b": 1}
+    )
+
+
+def test_pure_python_orchestrator_run_round_returns_summary(pure_orc):
+    summary = pure_orc.run_round(num_clients=3)
+    assert summary["round"] == 1
+    assert summary["num_clients"] == 3
+    assert "global_loss" in summary
+    assert summary["attack_results"] == []
+
+
+def test_pure_python_orchestrator_increments_round_count(pure_orc):
+    pure_orc.run_round(num_clients=2)
+    pure_orc.run_round(num_clients=2)
+    assert pure_orc.run_round(num_clients=2)["round"] == 3
+
+
+def test_pure_python_orchestrator_updates_global_weights(pure_orc):
+    initial = [list(v) for v in pure_orc.global_weights().values()]
+    pure_orc.run_round(num_clients=3)
+    updated = [list(v) for v in pure_orc.global_weights().values()]
+    # With random clients, at least one layer's weights should have moved off zero
+    assert updated != initial
+
+
+def test_pure_python_orchestrator_register_and_consume_attack(pure_orc):
+    pure_orc.register_attack(attack_type="gaussian_noise", std=0.1)
+    summary = pure_orc.run_round(num_clients=2)
+    assert summary["attack_results"] == [{"attack_type": "gaussian_noise"}]
+    # Attack buffer should be consumed
+    assert pure_orc.run_round(num_clients=2)["attack_results"] == []
+
+
+def test_pure_python_orchestrator_history_accumulates(pure_orc):
+    pure_orc.run_round(num_clients=2)
+    pure_orc.run_round(num_clients=2)
+    history = json.loads(pure_orc.history_json())
+    assert len(history) == 2
+    assert [h["round"] for h in history] == [1, 2]

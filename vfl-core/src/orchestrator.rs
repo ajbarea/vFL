@@ -100,10 +100,8 @@ impl Orchestrator {
                     attack_results.push(result);
                 }
                 crate::security::AttackType::GaussianNoise { std_dev } => {
-                    let result = crate::security::simulate_gaussian_noise(
-                        &mut self.global_weights,
-                        std_dev,
-                    );
+                    let result =
+                        crate::security::simulate_gaussian_noise(&mut self.global_weights, std_dev);
                     attack_results.push(result);
                 }
                 crate::security::AttackType::LabelFlipping { fraction } => {

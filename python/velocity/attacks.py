@@ -16,7 +16,7 @@ class AttackResult:
     description: str
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "AttackResult":
+    def from_dict(cls, d: dict[str, Any]) -> AttackResult:
         return cls(
             attack_type=d["attack_type"],
             clients_affected=d["clients_affected"],
