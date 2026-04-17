@@ -26,18 +26,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6.0.2
 
-      - name: Set up Python
-        uses: actions/setup-python@v6.2.0
+      - name: Set up uv (with Python)
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+          enable-cache: true
 
       - name: Install docs toolchain
-        run: |
-          python -m pip install --upgrade pip
-          pip install zensical
+        run: uv tool install zensical
 
       - name: Build docs site
-        run: zensical build --clean
+        run: uv tool run zensical build --clean
 
       - name: Configure Pages
         uses: actions/configure-pages@v6.0.0

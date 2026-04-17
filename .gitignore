@@ -38,3 +38,6 @@ wheels/
 
 # Documentation build output
 site/
+
+# vFL dev runner logs (scripts/dev.py)
+logs/

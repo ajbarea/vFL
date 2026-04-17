@@ -41,10 +41,8 @@ VelocityFL provides:
 git clone https://github.com/ajbarea/vFL.git
 cd vFL
 
-python -m pip install --upgrade pip
-pip install maturin
-maturin develop
-pip install -e ".[dev]"
+uv sync
+uv run maturin develop
 ```
 
 ### 2) Run a minimal Python example
@@ -95,13 +93,13 @@ Full reference: [`docs/cli.md`](docs/cli.md)
 cargo test --all
 
 # Python
-PYTHONPATH=python pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 ### Build docs locally
 
 ```bash
-zensical build --clean
+uv run zensical build --clean
 ```
 
 ---
