@@ -1,0 +1,3 @@
+[workspace]
+members = ["vfl-core"]
+resolver = "2"
