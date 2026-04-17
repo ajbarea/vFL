@@ -12,6 +12,7 @@ All skills use `disable-model-invocation: true`, so they fire only when you type
 │   └── hate-words.md          # canonical slop glossary (shared by /deslop, /reslop, /docsync)
 ├── audit/SKILL.md
 ├── auto-commit/SKILL.md
+├── ci-audit/SKILL.md
 ├── deslop/SKILL.md
 ├── docs-site/SKILL.md
 ├── docsync/SKILL.md
@@ -26,20 +27,22 @@ Edit `.claude/skills/_shared/hate-words.md` — not the individual skills — wh
 |---|---|---|---|
 | `/auto-commit` | Group pending git changes into a conventional-commit plan | `COMMITS.md` (with staleness header + `## Notes` preservation) | `git status`, `git diff`, `git log` |
 | `/audit` | Run the make-target matrix (full 13-step or fast 5-step) and verify each archive | — (read-only) | `logs/dev-*-<cmd>.log` |
+| `/ci-audit` | Audit GitHub Actions runs on the current branch/PR and fix workflow/config/source issues (no commit/push) | Edits on confirmation | `gh run view`, `.github/workflows/**` |
 | `/deslop` | Find AI-generated slop in comments and docstrings | Edits on confirmation | `python/**`, `vfl-core/**`, `scripts/**`, `tests/**` |
 | `/reslop` | Rewrite docstrings grounded in the actual implementation, call sites, and tests | Edits on confirmation | Same scope as `/deslop` |
 | `/docsync` | Verify prose claims in `README.md` + `docs/**/*.md` against the code | Edits on confirmation | Docs + source |
 | `/docs-site` | Maintain zensical config, docs workflow, assets, internal link integrity | Edits on confirmation | `zensical.toml`, `.github/workflows/docs.yml`, `docs/**` |
 
-`/deslop` removes slop; `/reslop` rewrites it grounded in the code; `/docsync` audits claims; `/docs-site` audits the site as a deployed artifact. They're designed to hand off to each other rather than overlap.
+`/deslop` removes slop; `/reslop` rewrites it grounded in the code; `/docsync` audits claims; `/docs-site` audits the site as a deployed artifact. `/audit` checks local `make` output; `/ci-audit` checks GitHub Actions output — sibling skills for the two rings of validation. They're designed to hand off to each other rather than overlap.
 
 ## Typical workflow
 
 1. Edit code, run `make validate` locally.
 2. `/auto-commit` → review the generated `COMMITS.md`, commit per group, open a PR.
 3. `/audit` before merge to confirm the full matrix is green and the archives agree with terminal output.
-4. `/docsync` if any user-facing prose needs a pass.
-5. `/docs-site` before a docs release if `zensical.toml` or workflow paths have changed.
+4. `/ci-audit` once GitHub Actions finishes to triage warnings/errors/deprecations; apply fixes, then commit + push yourself.
+5. `/docsync` if any user-facing prose needs a pass.
+6. `/docs-site` before a docs release if `zensical.toml` or workflow paths have changed.
 
 ## Why this is tracked in the repo
 
