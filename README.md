@@ -1,177 +1,148 @@
-# ⚡️ VelocityFL (vFL)
+# ⚡ VelocityFL (vFL)
 
-> **The "uv" of Federated Learning.**
+[![Tests](https://github.com/ajbarea/vFL/actions/workflows/tests.yml/badge.svg)](https://github.com/ajbarea/vFL/actions/workflows/tests.yml)
+[![Documentation](https://github.com/ajbarea/vFL/actions/workflows/docs.yml/badge.svg)](https://github.com/ajbarea/vFL/actions/workflows/docs.yml)
+[![Codecov](https://codecov.io/gh/ajbarea/vFL/graph/badge.svg?token=rcYwirIHWk)](https://codecov.io/gh/ajbarea/vFL)
 
-VelocityFL is a high-performance, Rust-backed federated learning orchestrator designed to unify the fragmented FL ecosystem. It combines the raw execution speed of Rust, the massive model library of Hugging Face, and the world-class observability of Prefect.
-
-Researchers write Python (PyTorch/Hugging Face). The infrastructure runs Rust. The result is a "zero-latency" experimentation engine that scales from a single laptop to 100k+ edge devices.
-
----
-
-## 🚀 The Vision
-
-Current FL frameworks (Flower, FATE, PySyft) are powerful but often feel like "plumbing" projects — slow to initialise, heavy on memory, and difficult to observe. VelocityFL adopts the **Astral Philosophy**:
-
-1. **Rust Core**: All networking (gRPC/mTLS), serialisation (safetensors), and orchestration logic are written in Rust.
-2. **Python Frontend**: Researchers stay in the ecosystem they love (Transformers, PEFT, Datasets).
-3. **Observability First**: A native Prefect dashboard replaces cryptic CLI logs with real-time flight control.
+VelocityFL is a federated learning orchestration project with a Rust core and a Python-first interface.
 
 ---
 
-## ✨ Key Features
+## What is this? 🧭
 
-| Feature | Description |
-|---|---|
-| 🦀 **Rust-Driven Orchestration** | Blazing-fast client-server communication with zero Python GIL overhead |
-| 📊 **Prefect Dashboard** | First-class UI for monitoring convergence, client health, and global model drift |
-| 🤗 **Native Hugging Face Integration** | Load datasets and transformers directly; PEFT (LoRA/QLoRA) for federated fine-tuning on low-end hardware; safetensors & Xet for ultra-fast, memory-mapped model weight loading |
-| 🛡️ **Security Sandbox** | Built-in modules for Differential Privacy, Model Poisoning detection, and Dataset Attack simulations |
-| 🤖 **Agentic Memory** | LLM-backed research assistant that analyses experiment logs and suggests aggregation strategy changes |
+VelocityFL provides:
+- 🦀 **Rust core (`vfl-core`)** for aggregation, attack simulation, and round orchestration
+- 🐍 **Python package (`python/velocity`)** for researcher-facing APIs and a fallback pure-Python orchestrator
+- 🖥️ **Typer CLI (`velocity`)** for local experimentation and quick capability inspection
+- 📚 **Zensical docs (`docs/`)** deployed via GitHub Actions
 
 ---
 
-## 🛠 The Stack
+## Current capabilities ✅
 
-| Component | Technology | Role |
-|---|---|---|
-| Engine | Rust / PyO3 | High-performance core & Python bindings |
-| UI / Orchestration | Prefect | Visual workflow management & observability |
-| Models / Weights | Hugging Face Safetensors | Fast, secure weight serialisation |
-| Storage | Hugging Face Xet | Deduplicated storage for massive model versions |
-| Fine-tuning | PEFT | Resource-efficient federated fine-tuning |
-| Messaging | gRPC (Tonic) | Secure, low-latency client-server sync |
+### Aggregation strategies
+- `FedAvg`
+- `FedProx`
+- `FedMedian`
+
+### Built-in attack simulations
+- `model_poisoning`
+- `sybil_nodes`
+- `gaussian_noise`
+- `label_flipping`
 
 ---
 
-## 💻 Quickstart (Developer Preview)
+## Quick start 🚀
 
-### 1. Install VelocityFL
+### 1) Clone and install
 
 ```bash
-# Install build tooling
-pip install maturin
-
-# Clone and build the Rust extension
 git clone https://github.com/ajbarea/vFL.git
 cd vFL
+
+python -m pip install --upgrade pip
+pip install maturin
 maturin develop
-pip install -e ".[all]"
+pip install -e ".[dev]"
 ```
 
-### 2. Define your Federated Task (`research.py`)
+### 2) Run a minimal Python example
 
 ```python
 from velocity import VelocityServer, Strategy
-from prefect import flow
 
-@flow(name="Fed-FineTune-Llama")
-def train_llama_federated():
-    # 1. Point to your HF Model & Strategy
-    vfl = VelocityServer(
-        model_id="meta-llama/Llama-3-8B",
-        dataset="huggingface/ultrafeedback",
-        strategy=Strategy.FedAvg,
-        storage="hf-xet://my-namespace/research-repo",
-    )
+server = VelocityServer(
+    model_id="demo/model",
+    dataset="demo/dataset",
+    strategy=Strategy.FedAvg,
+)
 
-    # 2. Start the Rust-backed orchestrator
-    # The Prefect UI will automatically track this run!
-    vfl.run(min_clients=10, rounds=5)
-
-if __name__ == "__main__":
-    train_llama_federated()
+server.simulate_attack("gaussian_noise", intensity=0.05)
+summaries = server.run(min_clients=1, rounds=1)
+print(summaries)
 ```
 
-### 3. Launch the Dashboard
-
-```bash
-prefect server start
-# View your FL convergence, client latency, and loss curves in 4K.
-```
-
----
-
-## 🛡 Security & Attack Simulation
-
-VelocityFL isn't just about training; it's about testing resilience. Toggle attack vectors to see how your model holds up:
-
-```python
-vfl.simulate_attack("model_poisoning", intensity=0.2)
-vfl.simulate_attack("sybil_nodes", count=5)
-vfl.simulate_attack("gaussian_noise", intensity=0.05)
-vfl.simulate_attack("label_flipping", fraction=0.3)
-```
-
----
-
-## 🗂 Project Structure
-
-```
-vFL/
-├── Cargo.toml              # Rust workspace
-├── pyproject.toml          # Python package + maturin config
-├── vfl-core/               # Rust crate (core engine + PyO3 bindings)
-│   └── src/
-│       ├── lib.rs          # PyO3 module entry-point
-│       ├── orchestrator.rs # FL round management
-│       ├── strategy.rs     # FedAvg / FedProx / FedMedian
-│       └── security.rs     # Attack simulation
-├── python/
-│   └── velocity/           # Python package
-│       ├── server.py       # VelocityServer (public API)
-│       ├── strategy.py     # Strategy enum
-│       ├── attacks.py      # Attack helpers
-│       └── flows.py        # Prefect task & flow definitions
-└── tests/                  # pytest suite
-```
-
----
-
-## 🧰 Developer Docs & CLI
-
-- Zensical docs source: [`docs/`](docs/) with project config in [`zensical.toml`](zensical.toml)
-- Documentation workflow: [`.github/workflows/docs.yml`](.github/workflows/docs.yml)
-- Test + coverage workflow: [`.github/workflows/tests.yml`](.github/workflows/tests.yml)
-
-Quick CLI commands:
+### 3) Use the CLI
 
 ```bash
 velocity --help
+velocity version
 velocity strategies
 velocity run --model-id test/model --dataset test/dataset --rounds 1 --min-clients 1
+velocity simulate-attack model_poisoning --intensity 0.2
 ```
 
 ---
 
-## 🧪 Running Tests
+## CLI reference (quick) 💻
+
+- `velocity version` — print package version
+- `velocity strategies` — list available strategies
+- `velocity run ...` — run rounds and print JSON summaries
+- `velocity simulate-attack ...` — register one attack and run a round
+
+Full reference: [`docs/cli.md`](docs/cli.md)
+
+---
+
+## Development 🧪
+
+### Run tests
 
 ```bash
-# Rust unit tests (14 tests)
-cargo test
+# Rust
+cargo test --all
 
-# Python tests (18 tests)
+# Python
 PYTHONPATH=python pytest tests/ -v
+```
 
-# Full integration (after maturin develop)
-pytest tests/ -v
+### Build docs locally
+
+```bash
+zensical build --clean
 ```
 
 ---
 
-## 🛣 Roadmap
+## Documentation 📚
 
-- **Alpha**: Core Rust engine with PyO3 bindings for PyTorch.
-- **Beta**: Native uv-style package management for FL clients; gRPC/mTLS client-server.
-- **v1.0**: Full Agentic Research Assistant integration & HF Hub "one-click" deploy.
+- Source: [`docs/`](docs/)
+- Config: [`zensical.toml`](zensical.toml)
+- Docs workflow: [`.github/workflows/docs.yml`](.github/workflows/docs.yml)
+- Test + coverage workflow: [`.github/workflows/tests.yml`](.github/workflows/tests.yml)
 
----
-
-## 🤝 Contributing
-
-We are building the **uv of Federated Learning**. If you know Rust, Python, or have a deep love for Hugging Face, we want your help!
-
-Check out [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+Published site: https://ajbarea.github.io/vFL/
 
 ---
 
-*Powered by the speed of Rust, the reach of Hugging Face, and the clarity of Prefect. Let's build the future of private AI. 🚀*
+## Repository layout 🗂️
+
+```text
+vFL/
+├── vfl-core/                 # Rust crate and PyO3 bindings
+├── python/velocity/          # Python package + CLI
+├── tests/                    # Python test suite
+├── docs/                     # Zensical documentation source
+├── .github/workflows/        # CI workflows (tests + docs)
+├── pyproject.toml            # Python packaging and tooling
+├── Cargo.toml                # Rust workspace manifest
+└── zensical.toml             # Docs build config
+```
+
+---
+
+## Coverage 📈
+
+[![Codecov](https://codecov.io/gh/ajbarea/vFL/graph/badge.svg?token=rcYwirIHWk)](https://codecov.io/gh/ajbarea/vFL)
+
+- Sunburst: https://codecov.io/gh/ajbarea/vFL/graphs/sunburst.svg?token=rcYwirIHWk
+- Grid: https://codecov.io/gh/ajbarea/vFL/graphs/tree.svg?token=rcYwirIHWk
+- Icicle: https://codecov.io/gh/ajbarea/vFL/graphs/icicle.svg?token=rcYwirIHWk
+
+---
+
+## License 📄
+
+[MIT](LICENSE)
