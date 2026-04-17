@@ -478,6 +478,34 @@ def cmd_test(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bench(_: argparse.Namespace) -> int:
+    """Run Rust divan benches + Python pytest-benchmark macro benches.
+
+    The Rust bench measures aggregation-only (best case, no PyO3). The
+    Python bench measures a full VelocityServer.run() round through the
+    Python API — the number that the 'uv of FL' claim actually rests on.
+    """
+    _print_header("Rust benches (divan)")
+    run(["cargo", "bench", "--bench", "aggregate"])
+
+    _print_header("Python macro benches (pytest-benchmark)")
+    # --benchmark-only: skip non-bench tests even if they get collected.
+    # -q: pytest-benchmark prints its own table; pytest noise just crowds it.
+    run(
+        [
+            "uv",
+            "run",
+            "pytest",
+            "tests/bench/",
+            "-q",
+            "--benchmark-only",
+            "--benchmark-columns=mean,stddev,rounds",
+            "--benchmark-sort=mean",
+        ]
+    )
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Combined workflows
 # ---------------------------------------------------------------------------
@@ -625,6 +653,7 @@ COMMANDS: dict[str, tuple[str, Callable[[argparse.Namespace], int]]] = {
     "test": ("Rust + Python tests", cmd_test),
     "test-py": ("Python tests (pytest)", cmd_test_py),
     "test-rs": ("Rust tests (cargo test --all)", cmd_test_rs),
+    "bench": ("Rust divan + Python pytest-benchmark macro benches", cmd_bench),
     "validate": ("Quick: lint + python tests", cmd_validate),
     "ci": ("Full pipeline: sync, build, lint (fix+check), tests", cmd_ci),
     "clean": ("Remove build + cache directories", cmd_clean),

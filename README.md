@@ -131,16 +131,29 @@ vFL/
 
 ---
 
+## Performance 📊
+
+On a 1M-parameter model with 10 clients, the Rust aggregation path is
+**~45× faster** than the pure-Python fallback through the Python API
+(10.5 ms vs 468 ms, `FedAvg`). On a 10M-parameter model, pure Python
+becomes impractical while Rust stays at ~138 ms per round.
+
+Full methodology, all shape tiers, and honest caveats (PyO3 marshaling
+overhead, FedMedian's sort cost, WSL noise) live in
+[`docs/benchmarks.md`](docs/benchmarks.md). Reproduce with `make bench`.
+
+---
+
 ## Coverage 📈
 
 [![Codecov](https://codecov.io/gh/ajbarea/vFL/graph/badge.svg?token=rcYwirIHWk)](https://codecov.io/gh/ajbarea/vFL)
 
-- Sunburst: https://codecov.io/gh/ajbarea/vFL/graphs/sunburst.svg?token=rcYwirIHWk
-- Grid: https://codecov.io/gh/ajbarea/vFL/graphs/tree.svg?token=rcYwirIHWk
-- Icicle: https://codecov.io/gh/ajbarea/vFL/graphs/icicle.svg?token=rcYwirIHWk
+![Sunburst](https://codecov.io/gh/ajbarea/vFL/graphs/sunburst.svg?token=rcYwirIHWk)
+![Grid](https://codecov.io/gh/ajbarea/vFL/graphs/tree.svg?token=rcYwirIHWk)
+![Icicle](https://codecov.io/gh/ajbarea/vFL/graphs/icicle.svg?token=rcYwirIHWk)
 
 ---
 
 ## License 📄
 
-[MIT](LICENSE)
+[Apache 2.0](LICENSE)
