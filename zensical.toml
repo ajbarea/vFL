@@ -14,6 +14,7 @@ nav = [
   { "Strategies" = "strategies.md" },
   { "Attacks" = "attacks.md" },
   { "API Reference" = "api.md" },
+  { "Skills" = "skills.md" },
 ]
 
 extra_css = ["style.css"]

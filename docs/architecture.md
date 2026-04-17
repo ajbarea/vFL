@@ -70,10 +70,13 @@ vFL/
 │   ├── flows.py            # Prefect flow wrappers
 │   └── cli.py              # Typer app
 ├── tests/                  # pytest suite
-└── docs/                   # this site
+├── docs/                   # this site
+├── scripts/dev.py          # logged fix-then-check runner (Makefile delegates here)
+└── .claude/skills/         # Claude Code slash-command library (see Skills page)
 ```
 
 ## Next
 
 - [Configuration](configuration.md) — fields on `VelocityServer`.
 - [API Reference](api.md) — public Python and Rust surface.
+- [Skills](skills.md) — the `.claude/skills/` library and how contributors use it.
