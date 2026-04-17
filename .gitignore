@@ -35,3 +35,6 @@ venv/
 # Maturin / wheel artifacts
 *.whl
 wheels/
+
+# Documentation build output
+site/

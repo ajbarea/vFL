@@ -127,6 +127,22 @@ vFL/
 
 ---
 
+## 🧰 Developer Docs & CLI
+
+- Zensical docs source: [`docs/`](docs/) with project config in [`zensical.toml`](zensical.toml)
+- Documentation workflow: [`.github/workflows/docs.yml`](.github/workflows/docs.yml)
+- Test + coverage workflow: [`.github/workflows/tests.yml`](.github/workflows/tests.yml)
+
+Quick CLI commands:
+
+```bash
+velocity --help
+velocity strategies
+velocity run --model-id test/model --dataset test/dataset --rounds 1 --min-clients 1
+```
+
+---
+
 ## 🧪 Running Tests
 
 ```bash
