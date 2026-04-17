@@ -43,11 +43,13 @@ See [Configuration](configuration.md) for field semantics and defaults.
 Enum of supported aggregation algorithms.
 
 ```python
-class Strategy(Enum):
+class Strategy(str, Enum):
     FedAvg    = "FedAvg"
     FedProx   = "FedProx"
     FedMedian = "FedMedian"
 ```
+
+Inherits from `str`, so `Strategy.FedAvg == "FedAvg"` is `True` — you can pass either the enum member or the string literal anywhere a strategy is expected.
 
 See [Strategies](strategies.md) for semantics and decision guide.
 

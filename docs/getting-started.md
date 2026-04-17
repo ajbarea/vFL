@@ -80,7 +80,7 @@ The CLI emits a JSON array of round summaries on stdout — pipe it to `jq` for 
 The repository ships a `Makefile` that wraps the canonical order:
 
 ```bash
-make check-env      # verify uv / cargo / maturin / rustc
+make check-env      # verify uv / cargo / rustc
 make sync           # uv sync
 make build          # maturin develop
 make fix            # ruff + cargo fmt + clippy --fix
