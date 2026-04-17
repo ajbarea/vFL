@@ -1,0 +1,55 @@
+{
+  // ─── Rust ─────────────────────────────────────────────────────────────
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.extraArgs": ["--all-targets", "--all-features"],
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.procMacro.enable": true,
+  "rust-analyzer.linkedProjects": ["./Cargo.toml"],
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true
+  },
+
+  // ─── Python ───────────────────────────────────────────────────────────
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "python.analysis.extraPaths": ["python"],
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests"],
+
+  // ─── TOML / misc ──────────────────────────────────────────────────────
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml"
+  },
+  "[markdown]": {
+    "editor.formatOnSave": false
+  },
+
+  // ─── File watcher / search hygiene ────────────────────────────────────
+  "files.watcherExclude": {
+    "**/target/**": true,
+    "**/.venv/**": true,
+    "**/logs/**": true,
+    "**/__pycache__/**": true,
+    "**/.ruff_cache/**": true,
+    "**/.pytest_cache/**": true
+  },
+  "search.exclude": {
+    "**/target": true,
+    "**/.venv": true,
+    "**/logs": true,
+    "**/uv.lock": true,
+    "**/Cargo.lock": true
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.egg-info": true
+  }
+}

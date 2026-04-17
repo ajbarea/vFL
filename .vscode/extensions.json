@@ -1,0 +1,10 @@
+{
+  // Prompted to install when a contributor opens the vFL workspace.
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "charliermarsh.ruff",
+    "tamasfe.even-better-toml",
+    "ms-python.python",
+    "ms-python.vscode-pylance"
+  ]
+}
