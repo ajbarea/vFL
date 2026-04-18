@@ -21,6 +21,7 @@ safetensors = "0.4"
 [dev-dependencies]
 approx = "0.5"
 divan = "0.1"
+proptest = "1"
 
 [[bench]]
 name = "aggregate"
