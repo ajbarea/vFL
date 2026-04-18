@@ -11,13 +11,13 @@ module without it raises a clear error.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 try:
     import torch
     from torch import Tensor, nn
-    from torch.utils.data import DataLoader, Dataset, Subset
+    from torch.utils.data import DataLoader
 except ImportError as exc:  # pragma: no cover
     raise ImportError(
         "velocity.training requires PyTorch. Install with: pip install 'velocity-fl[torch]'"
@@ -29,7 +29,6 @@ __all__ = [
     "evaluate",
     "layers_to_state_dict",
     "local_train",
-    "non_iid_shard_partition",
     "state_dict_to_layers",
 ]
 
@@ -117,54 +116,6 @@ def evaluate(
     if total_samples == 0:
         return float("nan"), float("nan")
     return total_loss / total_samples, total_correct / total_samples
-
-
-def non_iid_shard_partition(
-    dataset: Dataset,
-    *,
-    num_clients: int,
-    shards_per_client: int = 2,
-    seed: int = 0,
-) -> list[Subset]:
-    """Partition a labelled dataset into non-IID shards, McMahan-style.
-
-    Sort by label, slice into ``num_clients * shards_per_client`` contiguous
-    shards, then deal shards to clients at random. Each client ends up with
-    examples from only a few classes — the canonical hard FedAvg setup.
-
-    The dataset must expose integer labels via either a ``targets`` attribute
-    (torchvision convention) or tuple-yielding ``__getitem__``.
-    """
-    labels = _extract_labels(dataset)
-    n = len(labels)
-    num_shards = num_clients * shards_per_client
-    if num_shards > n:
-        raise ValueError(
-            f"Need at least {num_shards} samples to make {shards_per_client} shards "
-            f"per client across {num_clients} clients; got {n}."
-        )
-
-    sorted_indices = sorted(range(n), key=lambda i: labels[i])
-    shard_size = n // num_shards
-    shards = [sorted_indices[i * shard_size : (i + 1) * shard_size] for i in range(num_shards)]
-
-    rng = torch.Generator().manual_seed(seed)
-    deal_order = torch.randperm(num_shards, generator=rng).tolist()
-
-    client_indices: list[list[int]] = [[] for _ in range(num_clients)]
-    for shard_idx, target_client in enumerate(deal_order):
-        client_indices[target_client % num_clients].extend(shards[shard_idx])
-
-    return [Subset(dataset, idx) for idx in client_indices]
-
-
-def _extract_labels(dataset: Dataset) -> Sequence[int]:
-    targets = getattr(dataset, "targets", None)
-    if targets is not None:
-        if isinstance(targets, Tensor):
-            return targets.tolist()
-        return list(targets)
-    return [int(dataset[i][1]) for i in range(len(dataset))]  # type: ignore[arg-type]
 
 
 def aggregated_loss(per_client: Iterable[tuple[float, int]]) -> float:
