@@ -42,7 +42,15 @@ def test_bootstrap_creates_scaffolding_and_is_idempotent():
     memory.bootstrap("alice")  # second call is a no-op
     d = memory.user_dir("alice")
     assert (d / "MEMORY.md").exists()
-    for f in ("profile.md", "style.md", "hypotheses.md", "recent_runs.md", "recipes.md", "preferences.md"):
+    scaffolded = (
+        "profile.md",
+        "style.md",
+        "hypotheses.md",
+        "recent_runs.md",
+        "recipes.md",
+        "preferences.md",
+    )
+    for f in scaffolded:
         assert (d / f).exists()
     # only one bootstrap event recorded
     bootstrap_events = [e for e in memory.events("alice") if e["action"] == "bootstrap"]
