@@ -121,6 +121,7 @@ Published site: https://ajbarea.github.io/vFL/
 vFL/
 ├── vfl-core/                 # Rust crate and PyO3 bindings
 ├── python/velocity/          # Python package + CLI
+├── examples/                 # End-to-end demos (e.g. MNIST FedAvg)
 ├── tests/                    # Python test suite
 ├── docs/                     # Zensical documentation source
 ├── .github/workflows/        # CI workflows (tests + docs)
@@ -133,14 +134,28 @@ vFL/
 
 ## Performance 📊
 
-On a 1M-parameter model with 10 clients, the Rust aggregation path is
-**~45× faster** than the pure-Python fallback through the Python API
-(10.5 ms vs 468 ms, `FedAvg`). On a 10M-parameter model, pure Python
-becomes impractical while Rust stays at ~138 ms per round.
+The claim vFL defends is on **aggregation** — the one step the library
+owns. Client-side local training is PyTorch's territory; we don't time
+it and we don't claim to speed it up.
+
+On a 1M-parameter model with 10 clients, the Rust aggregation kernel
+runs **~92× faster** than the pure-Python fallback through the Python
+API (4.75 ms vs 438 ms, `FedAvg`). At 10M params, Rust stays at ~49 ms
+per aggregation; pure Python becomes impractical to measure.
+
+End-to-end, this matters less than the raw ratio suggests: on the
+[MNIST FedAvg demo](examples/mnist_fedavg.py) (5 clients, ~109K params),
+aggregation is ~10 ms of an ~11-second round — the rest is torch local
+training. The aggregation-speedup lever compounds at robust-aggregator
+(Krum, Bulyan), high-client-count, and small-update scales, not at
+small-model simulation.
 
 Full methodology, all shape tiers, and honest caveats (PyO3 marshaling
 overhead, FedMedian's sort cost, WSL noise) live in
-[`docs/benchmarks.md`](docs/benchmarks.md). Reproduce with `make bench`.
+[`docs/benchmarks.md`](docs/benchmarks.md). Convergence evidence lives
+in [`docs/convergence.md`](docs/convergence.md). Reproduce with
+`make bench` (kernel) and `uv run python examples/mnist_fedavg.py`
+(end-to-end).
 
 ---
 

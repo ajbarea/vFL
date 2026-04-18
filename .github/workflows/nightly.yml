@@ -1,0 +1,54 @@
+name: Nightly examples
+
+# Runs the full end-to-end examples on real datasets (MNIST, etc.) every night
+# and on manual dispatch. These are deliberately excluded from the fast CI in
+# `tests.yml` because they download data, take minutes, and exercise the torch
+# path — the convergence-floor asserts in each example are what keep silent
+# regressions from shipping.
+
+on:
+  schedule:
+    - cron: "17 7 * * *"   # 07:17 UTC daily (off-peak, non-overlapping with Tests)
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  examples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up uv (with Python)
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install project with torch extra
+        run: uv sync --extra torch
+
+      - name: Build Rust extension (release)
+        run: uv run maturin develop --release --uv
+
+      - name: Cache MNIST dataset
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: mnist-torchvision-v1
+
+      - name: Run MNIST FedAvg example
+        run: uv run python examples/mnist_fedavg.py
