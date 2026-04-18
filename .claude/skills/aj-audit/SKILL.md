@@ -12,7 +12,7 @@ Run the full `make` audit in phases. Each phase builds on the previous; the orde
 ## Modes
 
 - **Full audit (default)** — all 13 commands below. Run when the user says "run the full audit" or didn't specify.
-- **Fast audit** — `check-env` → `clean` → `sync` → `build` → `ci`. Five commands, ~25s end-to-end. Run when the user says "quick check", "fast audit", or only wants to know if CI will pass. Skips the granular lint/test phases; the `ci` archive covers the same ground for pass/fail, just without per-tool isolation for log-diffing.
+- **Fast audit** — `clean` → `check-env` → `sync` → `build` → `ci`. Five commands, ~25s end-to-end. Run when the user says "quick check", "fast audit", or only wants to know if CI will pass. Skips the granular lint/test phases; the `ci` archive covers the same ground for pass/fail, just without per-tool isolation for log-diffing.
 
 Pick the mode up front and stick with it — don't silently promote a fast audit to a full one mid-run.
 
@@ -20,8 +20,8 @@ Pick the mode up front and stick with it — don't silently promote a fast audit
 
 ### Phase 1 — Setup (prove the environment before touching code)
 
-1. `make check-env` — uv / cargo / rustc on PATH. If this fails, stop.
-2. `make clean` — wipes `target/`, `__pycache__`, `.ruff_cache`, `.pytest_cache`, stale `_core` artifacts. Starts log history from a known-zero state.
+1. `make clean` — wipes `target/`, `__pycache__`, `.ruff_cache`, `.pytest_cache`, stale `_core` artifacts. Starts log history from a known-zero state. **Must run first**, otherwise `clean` wipes preceding archives (`check-env`, etc.) along with the stale ones.
+2. `make check-env` — uv / cargo / rustc on PATH. If this fails, stop.
 3. `make sync` — `uv sync` resolves the Python env. Required before any Python-side tool.
 4. `make build` — `maturin develop` compiles the Rust crate and installs `velocity._core` into `.venv`. **Must run before any Python lint/test** — otherwise `ty` can't resolve the native module and reports phantom import failures.
 
@@ -104,7 +104,7 @@ Pick the verdict line to match the mode: `Full 13-step audit clean.` or `Fast 5-
 
 ## Stop-early rules
 
-- If Phase 1 fails (check-env / clean / sync / build), stop and report. The rest won't produce meaningful results.
+- If Phase 1 fails (clean / check-env / sync / build), stop and report. The rest won't produce meaningful results.
 - If a later phase fails, keep going — the user wants the full matrix even with some red rows.
 
 ## Scope

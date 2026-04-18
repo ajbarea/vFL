@@ -25,7 +25,7 @@ Analyze pending git changes and group them into a structured commit plan written
    - `git rev-parse HEAD` (for the staleness header)
    - `git diff HEAD | git hash-object --stdin` (fingerprint of the working tree for the staleness header)
 
-3. **Trust `.gitignore`.** Do not hardcode directory filters (no "skip `.claude/`", "skip `designs/`"). `git status` already respects `.gitignore`; if a file shows up, the user wants it tracked. The only filter is: if `git status` reports a clean tree with nothing staged, say so in one sentence and don't write the file.
+3. **Trust `.gitignore`, with one exception: always exclude `COMMITS.md` itself.** Do not hardcode directory filters (no "skip `.claude/`", "skip `designs/`"). `git status` already respects `.gitignore`; if a file shows up, the user wants it tracked. The sole baked-in filter is `COMMITS.md` at the repo root — it is the regeneratable output of this skill, and including it in its own plan is circular (and leads to committing it to `main`, which the user has explicitly regretted). Drop it from every group; if `COMMITS.md` is the *only* pending change, treat the tree as clean and don't rewrite the file. Beyond that, if `git status` reports nothing worth committing, say so in one sentence and don't write the file.
 
 4. **Group.** Decide the grouping that best reflects the actual work. See [Grouping](#grouping).
 
