@@ -11,7 +11,7 @@
 ## the tooling could not auto-resolve.
 ##
 
-.PHONY: help check-env sync build docs fix lint lint-py lint-rs test test-py test-rs bench validate ci clean
+.PHONY: help check-env sync build docs fix lint lint-py lint-rs test test-py test-rs bench validate ci clean logs logs-tail
 .DEFAULT_GOAL := help
 
 DEV := uv run python scripts/dev.py
@@ -82,8 +82,20 @@ ci:                     ## Mirror CI end-to-end: sync, build, lint, tests
 # Maintenance
 # ---------------------------------------------------------------------------
 
-clean:                  ## Remove build + cache directories
+clean:                  ## Remove build + cache directories (keeps dev-latest.log)
 	@$(DEV) clean
+
+# ---------------------------------------------------------------------------
+# Logs
+#   These do NOT go through dev.py — dev.py truncates dev-latest.log when it
+#   opens, which would erase what we're trying to read.
+# ---------------------------------------------------------------------------
+
+logs:                   ## Show the last 200 lines of logs/dev-latest.log
+	@tail -n 200 logs/dev-latest.log 2>/dev/null || echo "no logs yet — run any make target first"
+
+logs-tail:              ## Follow logs/dev-latest.log (Ctrl-C to exit)
+	@tail -f logs/dev-latest.log
 
 # ---------------------------------------------------------------------------
 # Help

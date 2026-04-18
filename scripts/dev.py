@@ -473,9 +473,19 @@ def cmd_test_py(args: argparse.Namespace) -> int:
 
 
 def cmd_test(args: argparse.Namespace) -> int:
-    cmd_test_rs(args)
-    cmd_test_py(args)
-    return 0
+    # Accumulate failures across both suites so a Rust test failure doesn't
+    # prevent Python tests from running (and vice versa).
+    failures: list[str] = []
+    try:
+        cmd_test_rs(args)
+    except StepFailedError:
+        failures.append("cargo test --all")
+    try:
+        cmd_test_py(args)
+    except StepFailedError:
+        failures.append("pytest")
+    _summary("Test summary", failures)
+    return 1 if failures else 0
 
 
 def cmd_bench(_: argparse.Namespace) -> int:
@@ -633,6 +643,14 @@ def cmd_clean(_: argparse.Namespace) -> int:
         if ".venv" in pycache.parts or "target" in pycache.parts:
             continue
         shutil.rmtree(pycache, ignore_errors=True)
+    # Timestamped log archives — dev-latest.log is the active handle for the
+    # current run, so leave it alone.
+    if LOGS_DIR.is_dir():
+        archives = sorted(LOGS_DIR.glob("dev-*-*.log"))
+        if archives:
+            print(f"  rm logs/dev-*-*.log  ({len(archives)} archive(s))")
+            for archive in archives:
+                archive.unlink(missing_ok=True)
     return 0
 
 
