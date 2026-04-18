@@ -8,7 +8,7 @@ Byzantine-style attack simulations baked into the Rust core. Use them to stress-
 |---|---|---|
 | `model_poisoning` | `intensity ∈ [0, 1]` | Scales a subset of client weight vectors by a corrupting factor. Directly attacks the aggregator. |
 | `sybil_nodes` | `count ≥ 1` | Injects `count` fake clients that submit near-identical malicious updates, amplifying their vote. |
-| `gaussian_noise` | `intensity ≥ 0` (σ) | Adds N(0, σ²) noise to client updates. Simulates unreliable clients or rough channels. |
+| `gaussian_noise` | `intensity ≥ 0` (σ) | Adds N(0, σ²) noise to the aggregated global weights. Simulates unreliable clients or rough channels. |
 | `label_flipping` | `fraction ∈ [0, 1]` | Flips labels on `fraction` of participating clients — classic data-poisoning primitive. |
 
 ## Register via Python
@@ -89,4 +89,4 @@ See [Strategies](strategies.md) for when each aggregation algorithm is the right
 
 ## Adding a new attack
 
-Attack kernels live under `vfl-core/src/attacks/`. The shape mirrors the strategy contract — implement the mutation in Rust, expose it through the orchestrator's `register_attack` dispatch, then add the identifier to `VALID_ATTACKS` in `python/velocity/attacks.py` and document the parameter here.
+Attack kernels live in `vfl-core/src/security.rs`. The shape mirrors the strategy contract — implement the mutation in Rust, expose it through the orchestrator's `register_attack` dispatch, then add the identifier to `VALID_ATTACKS` in `python/velocity/attacks.py` and document the parameter here.

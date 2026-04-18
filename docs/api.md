@@ -68,7 +68,7 @@ class AttackResult:
     description: str
 
     @classmethod
-    def from_dict(cls, d: dict) -> AttackResult: ...
+    def from_dict(cls, d: dict[str, Any]) -> AttackResult: ...
 ```
 
 ---

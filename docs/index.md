@@ -22,7 +22,7 @@ hide:
 
 <div class="hero-tagline" markdown>
 
-:octicons-cpu-24: Rust Core | :octicons-code-24: Python API | :octicons-zap-24: Prefect Observability
+:octicons-cpu-24: Rust Core | :octicons-code-24: Python API | :octicons-graph-24: [~92× Faster Aggregation](benchmarks.md)
 { .hero-modes }
 
 </div>
@@ -42,8 +42,8 @@ hide:
 
 <section class="landing-section landing-section--promise">
   <div class="section-inner">
-    <h2 class="section-title">Engineered for Speed. Written for Researchers.</h2>
-    <p class="section-lead">A PyO3 extension does the aggregation math; a Typer CLI and a thin Python API keep experimentation friction low. Prefect-native flows give you round-level observability out of the box.<br><strong>Low overhead. Reproducible runs. Resilience testing built in.</strong></p>
+    <h2 class="section-title">Rust core, Python surface</h2>
+    <p class="section-lead">A PyO3 extension runs the aggregation math; a Typer CLI and a thin Python API keep experimentation friction low. Prefect wraps each round so you get flow-level visibility without custom logging glue. The aggregation kernel runs <a href="benchmarks/">~92× faster</a> than the pure-Python fallback at 1M params (4.75 ms vs 438 ms, `FedAvg`) &mdash; the measured claim is on aggregation only, not end-to-end training, with honest caveats on PyO3 marshaling cost.</p>
   </div>
 </section>
 
@@ -129,7 +129,7 @@ hide:
     <div class="feature-grid feature-grid--compact">
       <div class="feature-card feature-card--flat">
         <div class="feature-name"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">bolt</span> Rust Hot Path</div>
-        <p>Aggregation, median, and attack simulation implemented in Rust via PyO3. No Python-loop overhead on the critical path.</p>
+        <p>Aggregation, median, and attack simulation compiled to Rust via PyO3. <a href="benchmarks/">~92× faster</a> aggregation than the pure-Python fallback at 1M params (4.75 ms vs 438 ms, `FedAvg`); PyO3 list-marshaling on the return path is the remaining FFI overhead (tracked).</p>
       </div>
       <div class="feature-card feature-card--flat">
         <div class="feature-name"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">science</span> Research-Friendly</div>
@@ -152,11 +152,11 @@ hide:
     <h2 class="section-title">Technology Stack</h2>
     <div class="tech-stack">
       <div class="tech-item"><strong>Core</strong> Rust + PyO3</div>
-      <div class="tech-item"><strong>API</strong> Python 3.9+</div>
+      <div class="tech-item"><strong>API</strong> Python</div>
       <div class="tech-item"><strong>Build</strong> maturin + uv</div>
-      <div class="tech-item"><strong>Orchestration</strong> Prefect 3</div>
+      <div class="tech-item"><strong>Orchestration</strong> Prefect</div>
       <div class="tech-item"><strong>CLI</strong> Typer</div>
-      <div class="tech-item"><strong>Validation</strong> Pydantic 2</div>
+      <div class="tech-item"><strong>Validation</strong> Pydantic</div>
       <div class="tech-item"><strong>ML</strong> HuggingFace + PEFT + Torch</div>
       <div class="tech-item"><strong>Docs</strong> Zensical</div>
     </div>
@@ -165,9 +165,9 @@ hide:
 
 <section class="landing-section cta-section">
   <div class="section-inner">
-    <h2 class="section-title">Ready to Federate?</h2>
-    <p class="cta-lead">Configure. Run. Attack. Measure.</p>
-    <a href="getting-started/" class="md-button md-button--primary cta-button">Get Started</a>
+    <h2 class="section-title">Get started</h2>
+    <p class="cta-lead">Clone, <code>maturin develop</code>, run your first round.</p>
+    <a href="getting-started/" class="md-button md-button--primary cta-button">Read the Quickstart</a>
   </div>
 </section>
 

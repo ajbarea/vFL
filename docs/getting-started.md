@@ -4,12 +4,14 @@ This page walks you from a fresh clone to your first federated round in under fi
 
 ## Prerequisites
 
-| Tool | Minimum | Why |
-|---|---|---|
-| **Rust** | 1.82 (stable) | Compiles the `vfl-core` crate and the PyO3 extension. |
-| **Python** | 3.9+ | Runs the `velocity` package and CLI. |
-| **uv** | 0.5+ | Manages the virtualenv and project dependencies. |
-| **maturin** | 1.7+ | Builds the Rust extension into a Python-importable module. Installed transitively by `uv sync`. |
+| Tool | Why |
+|---|---|
+| **Rust** (stable) | Compiles the `vfl-core` crate and the PyO3 extension. |
+| **Python** | Runs the `velocity` package and CLI. |
+| **uv** | Manages the virtualenv and project dependencies. |
+| **maturin** | Builds the Rust extension into a Python-importable module. Installed transitively by `uv sync`. |
+
+Exact pins live in `pyproject.toml` (`requires-python`, `[build-system]`) and `vfl-core/Cargo.toml` — check those if you need to match a specific version.
 
 Install uv in one line:
 
@@ -23,7 +25,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/ajbarea/vFL.git
 cd vFL
 
-uv sync                  # resolves the Python env (incl. dev extras)
+uv sync                  # resolves the Python env
 uv run maturin develop   # compiles the Rust core into .venv
 ```
 
