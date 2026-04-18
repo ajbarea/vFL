@@ -1,0 +1,78 @@
+# Full attack × strategy matrix — stress-test surface.
+#
+# Runs FedAvg and FedMedian against every supported attack type at default
+# parameters. Produces a 2 * (1 baseline + 4 attacks) = 10-row comparison.md.
+#
+#   velocity sweep experiments/attack_matrix.toml
+
+[shared]
+model_id    = "demo/model"
+dataset     = "demo/dataset"
+storage     = "local://checkpoints"
+rounds      = 8
+min_clients = 5
+seed        = 42
+
+[[runs]]
+name     = "fedavg-clean"
+strategy = "FedAvg"
+
+[[runs]]
+name     = "fedavg-model-poisoning"
+strategy = "FedAvg"
+[[runs.attacks]]
+type      = "model_poisoning"
+intensity = 0.5
+
+[[runs]]
+name     = "fedavg-sybil"
+strategy = "FedAvg"
+[[runs.attacks]]
+type  = "sybil_nodes"
+count = 3
+
+[[runs]]
+name     = "fedavg-gaussian"
+strategy = "FedAvg"
+[[runs.attacks]]
+type      = "gaussian_noise"
+intensity = 0.2
+
+[[runs]]
+name     = "fedavg-label-flip"
+strategy = "FedAvg"
+[[runs.attacks]]
+type     = "label_flipping"
+fraction = 0.3
+
+[[runs]]
+name     = "fedmedian-clean"
+strategy = "FedMedian"
+
+[[runs]]
+name     = "fedmedian-model-poisoning"
+strategy = "FedMedian"
+[[runs.attacks]]
+type      = "model_poisoning"
+intensity = 0.5
+
+[[runs]]
+name     = "fedmedian-sybil"
+strategy = "FedMedian"
+[[runs.attacks]]
+type  = "sybil_nodes"
+count = 3
+
+[[runs]]
+name     = "fedmedian-gaussian"
+strategy = "FedMedian"
+[[runs.attacks]]
+type      = "gaussian_noise"
+intensity = 0.2
+
+[[runs]]
+name     = "fedmedian-label-flip"
+strategy = "FedMedian"
+[[runs.attacks]]
+type     = "label_flipping"
+fraction = 0.3

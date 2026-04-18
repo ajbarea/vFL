@@ -1,0 +1,26 @@
+# Strategy baseline comparison — no attacks, common dataset + model.
+#
+# Runs every supported aggregation strategy under identical conditions so the
+# final-loss column in `comparison.md` is an apples-to-apples ranking.
+#
+#   velocity sweep experiments/strategy_baselines.toml
+
+[shared]
+model_id    = "demo/model"
+dataset     = "demo/dataset"
+storage     = "local://checkpoints"
+rounds      = 10
+min_clients = 5
+seed        = 42
+
+[[runs]]
+name     = "fedavg-baseline"
+strategy = "FedAvg"
+
+[[runs]]
+name     = "fedprox-baseline"
+strategy = "FedProx"
+
+[[runs]]
+name     = "fedmedian-baseline"
+strategy = "FedMedian"

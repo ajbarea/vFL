@@ -1,0 +1,38 @@
+# Robustness-under-attack comparison.
+#
+# Each strategy gets (a) a clean baseline and (b) a run with model poisoning at
+# intensity 0.5 applied to one client. The gap between the two rows for a
+# given strategy is the robustness signal; the gap *between* strategies at
+# the attacked row is how much Byzantine tolerance buys you.
+#
+#   velocity sweep experiments/attack_robustness.toml
+
+[shared]
+model_id    = "demo/model"
+dataset     = "demo/dataset"
+storage     = "local://checkpoints"
+rounds      = 10
+min_clients = 5
+seed        = 42
+
+[[runs]]
+name     = "fedavg-clean"
+strategy = "FedAvg"
+
+[[runs]]
+name     = "fedavg-poisoned"
+strategy = "FedAvg"
+[[runs.attacks]]
+type      = "model_poisoning"
+intensity = 0.5
+
+[[runs]]
+name     = "fedmedian-clean"
+strategy = "FedMedian"
+
+[[runs]]
+name     = "fedmedian-poisoned"
+strategy = "FedMedian"
+[[runs.attacks]]
+type      = "model_poisoning"
+intensity = 0.5
