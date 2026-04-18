@@ -75,12 +75,12 @@ server.simulate_attack(
 
 ## Strategy parameters
 
-Some strategies accept their own tuning knobs. These are set on the strategy object, not on `VelocityServer`.
+Some strategies carry their own tuning knobs. In the current Python surface these are fixed; the Rust constructors accept custom values.
 
-| Strategy | Parameter | Default | Description |
+| Strategy | Parameter | Value in Python surface | Description |
 |---|---|---|---|
 | `FedAvg` | *(none)* | — | Weighted mean by `num_samples`. |
-| `FedProx` | `mu` | `0.01` | Proximal-term coefficient. Higher = more conservative updates, better on heterogeneous clients. |
+| `FedProx` | `mu` | `0.01` (fixed) | Proximal-term coefficient. Higher = more conservative updates, better on heterogeneous clients. Override via `velocity._core.Strategy.fed_prox(mu)`. |
 | `FedMedian` | *(none)* | — | Coordinate-wise median. |
 
 See [Strategies](strategies.md) for when to use each.
@@ -89,6 +89,8 @@ See [Strategies](strategies.md) for when to use each.
 
 | Variable | Effect |
 |---|---|
-| `RUST_LOG` | Forwarded to the Rust core. Set to `debug` or `trace` for round-level instrumentation. |
-| `PREFECT_API_URL` | If set, the Prefect flow wrappers log rounds to your Prefect backend. |
-| `HF_TOKEN` | Used by the HF client when pulling private models / datasets. |
+| `VFL_DB_PATH` | Overrides the experiment SQLite path. Default: `./.velocity/experiments.db`. |
+| `VFL_MEMORY_DIR` | Overrides the researcher memory root. Default: `~/.velocity/memory/`. |
+| `VFL_USER_ID` | Overrides the per-user scope for memory and runs. Default: current shell user. |
+| `PREFECT_API_URL` | Honored by Prefect — if set, the flow wrappers report to your Prefect backend. |
+| `HF_TOKEN` | Honored by the `huggingface_hub` client for private models / datasets. |

@@ -48,3 +48,9 @@ logs/
 coverage.xml
 junit.xml
 htmlcov/
+
+# vFL agent surface: experiment DB + per-run notes (local, per-machine)
+.velocity/
+
+# Datasets downloaded by examples/ (e.g. MNIST via torchvision)
+data/
