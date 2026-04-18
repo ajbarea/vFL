@@ -70,26 +70,26 @@ Snapshot: 2026-04-18, AMD Ryzen 5 3600X, single CPU thread per round
 of local training. MNIST sharded so each client only sees 2 of the 10
 digit classes (McMahan et al. 2017 setup). Small MLP
 (784→128→64→10, ~109K params), batch size 64, lr=0.01,
-1 local epoch per round.
+1 local epoch per round. Partitioning via `velocity.partition.shard`
+with `seed=0`.
 
 | round | pre-loss | post-loss | post-acc | sec/round |
 |------:|---------:|----------:|---------:|----------:|
 | init  |   2.3072 |        —  |   0.110  |       —   |
-|     1 |   2.3072 |   1.8213  |   0.415  |    11.58  |
-|     2 |   1.8213 |   1.1628  |   0.668  |    11.53  |
-|     3 |   1.1628 |   0.8906  |   0.707  |    11.31  |
-|     4 |   0.8906 |   0.6394  |   0.836  |    12.94  |
-|     5 |   0.6394 |   0.6160  |   0.787  |    11.59  |
-|     6 |   0.6160 |   0.4760  |   0.861  |    11.28  |
-|     7 |   0.4760 |   0.4697  |   0.842  |    12.39  |
-|     8 |   0.4697 |   0.3819  |   0.883  |    11.69  |
-|     9 |   0.3819 |   0.3912  |   0.874  |    10.89  |
-|    10 |   0.3912 |   0.3177  |   0.908  |    11.16  |
+|     1 |   2.3072 |   1.8419  |   0.432  |    12.48  |
+|     2 |   1.8419 |   1.2093  |   0.663  |    11.27  |
+|     3 |   1.2093 |   0.8882  |   0.714  |    11.29  |
+|     4 |   0.8882 |   0.6797  |   0.798  |    11.27  |
+|     5 |   0.6797 |   0.5962  |   0.811  |    11.35  |
+|     6 |   0.5962 |   0.5103  |   0.849  |    11.24  |
+|     7 |   0.5103 |   0.4844  |   0.845  |    11.28  |
+|     8 |   0.4844 |   0.4037  |   0.882  |    11.24  |
+|     9 |   0.4037 |   0.4099  |   0.866  |    11.13  |
+|    10 |   0.4099 |   0.3510 |   0.897  |    11.28  |
 
-**11.0% → 90.8% test accuracy** in 10 rounds. Loss falls from 2.31 to
-0.32. The single-round dips at rounds 5, 7, and 9 are expected on
-non-IID data — FedAvg is not a contraction when client objectives
-disagree.
+**11.0% → 89.7% test accuracy** in 10 rounds. Loss falls from 2.31 to
+0.35. The single-round dip at round 9 is expected on non-IID data —
+FedAvg is not a contraction when client objectives disagree.
 
 Per-round wall time is dominated by client-side local training in
 PyTorch, **not** by aggregation. The Rust orchestrator's contribution
@@ -138,9 +138,9 @@ aggregation kernel:
   FedAvg by construction; the proximal term is client-side), and
   `FedMedian` are real. Other published strategies (Krum, Trimmed
   Mean, Bulyan, FedYogi, FedAdam) are not implemented.
-- **Partitioning** — only McMahan-style shard partition lives in
-  `velocity.training.non_iid_shard_partition`. Dirichlet-α partition
-  and quantity-skew partition are missing.
+- **Partitioning** — `velocity.partition` now provides `iid`, `shard`,
+  and `dirichlet`. Quantity-skew and feature-skew partitioners remain
+  out of scope until a concrete use case appears.
 
 These are tracked as a roadmap item: replace each with a real,
 plug-and-play implementation, then add a convergence test that

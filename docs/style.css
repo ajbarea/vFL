@@ -1,17 +1,10 @@
-/* ==========================================================================
-   VelocityFL — docs theme
-   Editorial violet landing page, deliberately distinct from sibling projects.
-   ========================================================================== */
-
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
 
-:root > * {
+:root>* {
   --md-primary-fg-color: #7c3aed;
   --md-primary-fg-color--light: #a855f7;
   --md-primary-fg-color--dark: #5b21b6;
   --md-accent-fg-color: #c4b5fd;
-
-  /* vFL palette */
   --vfl-violet: #7c3aed;
   --vfl-violet-light: #a855f7;
   --vfl-violet-pale: #c4b5fd;
@@ -20,8 +13,6 @@
   --vfl-graphite: #0f1118;
   --vfl-ink: #1a1d27;
   --vfl-mist: rgba(196, 181, 253, 0.08);
-
-  /* Hero background image — set via CSS so index.md stays simple */
   --hero-bg-image: url('assets/velocity-hero.png');
 }
 
@@ -47,10 +38,6 @@
   -webkit-font-smoothing: antialiased;
   vertical-align: middle;
 }
-
-/* ==========================================================================
-   Full-viewport immersive hero
-   ========================================================================== */
 
 body.hero-page .md-footer {
   display: none !important;
@@ -81,40 +68,26 @@ body.hero-page .md-content__inner {
   overflow: hidden;
   background-color: var(--vfl-obsidian);
 
-  /* Layered background (top layer → bottom layer):
-     1. Radial halo centered on the hero art — fades the rectangular edge
-        of velocity-hero.png into the obsidian page background.
-     2. Copy-side left→right fade — keeps the left 55% deep enough for text.
-     3. Top/bottom edge fade — blends the hero into the sections above/below.
-     4. The hero art itself, anchored right, covering the region.
-  */
   background:
-    radial-gradient(
-      ellipse 60% 70% at 78% 52%,
+    radial-gradient(ellipse 60% 70% at 78% 52%,
       transparent 0%,
       color-mix(in srgb, var(--vfl-obsidian) 22%, transparent) 55%,
       color-mix(in srgb, var(--vfl-obsidian) 75%, transparent) 85%,
-      var(--vfl-obsidian) 100%
-    ),
-    linear-gradient(
-      to right,
+      var(--vfl-obsidian) 100%),
+    linear-gradient(to right,
       var(--vfl-obsidian) 0%,
       color-mix(in srgb, var(--vfl-obsidian) 92%, transparent) 32%,
       color-mix(in srgb, var(--vfl-obsidian) 40%, transparent) 60%,
-      transparent 100%
-    ),
-    linear-gradient(
-      to bottom,
+      transparent 100%),
+    linear-gradient(to bottom,
       color-mix(in srgb, var(--vfl-obsidian) 40%, transparent) 0%,
       transparent 30%,
       transparent 70%,
-      var(--vfl-obsidian) 100%
-    ),
+      var(--vfl-obsidian) 100%),
     var(--hero-bg-image) right center / cover no-repeat,
     var(--vfl-obsidian);
 }
 
-/* Subtle violet glow behind the copy — adds depth without competing with the hero art */
 .md-typeset .hero::before {
   content: "";
   position: absolute;
@@ -122,137 +95,99 @@ body.hero-page .md-content__inner {
   left: -10%;
   width: 60%;
   height: 60%;
-  background: radial-gradient(
-    ellipse at center,
-    color-mix(in srgb, var(--vfl-violet) 18%, transparent) 0%,
-    transparent 60%
-  );
+  background: radial-gradient(ellipse at center,
+      color-mix(in srgb, var(--vfl-violet) 18%, transparent) 0%,
+      transparent 60%);
   pointer-events: none;
   z-index: 0;
   filter: blur(40px);
 }
 
-.md-typeset .hero > * {
+.md-typeset .hero>* {
   position: relative;
   z-index: 1;
 }
 
-/* Tablet / narrow desktop — keep editorial layout but soften art anchor */
 @media (max-width: 1100px) {
   .md-typeset .hero {
     padding: 5rem 6vw 4.5rem;
     background:
-      radial-gradient(
-        ellipse 70% 60% at 75% 58%,
+      radial-gradient(ellipse 70% 60% at 75% 58%,
         transparent 0%,
         color-mix(in srgb, var(--vfl-obsidian) 25%, transparent) 50%,
         color-mix(in srgb, var(--vfl-obsidian) 80%, transparent) 82%,
-        var(--vfl-obsidian) 100%
-      ),
-      linear-gradient(
-        to right,
+        var(--vfl-obsidian) 100%),
+      linear-gradient(to right,
         var(--vfl-obsidian) 0%,
         color-mix(in srgb, var(--vfl-obsidian) 85%, transparent) 28%,
         color-mix(in srgb, var(--vfl-obsidian) 50%, transparent) 55%,
-        transparent 100%
-      ),
-      linear-gradient(
-        to bottom,
+        transparent 100%),
+      linear-gradient(to bottom,
         color-mix(in srgb, var(--vfl-obsidian) 40%, transparent) 0%,
         transparent 35%,
         transparent 70%,
-        var(--vfl-obsidian) 100%
-      ),
+        var(--vfl-obsidian) 100%),
       var(--hero-bg-image) right center / cover no-repeat,
       var(--vfl-obsidian);
   }
 }
 
-/* Narrower screens: centered stack, art contained + vignetted so edges fade */
 @media (max-width: 960px) {
   .md-typeset .hero {
     align-items: center;
     text-align: center;
-    padding: 5rem 1.5rem 4rem;
+    justify-content: flex-end;
+    padding: 2.5rem 1.5rem 3.5rem;
     background:
-      radial-gradient(
-        ellipse 85% 55% at center 62%,
+      linear-gradient(to bottom,
         transparent 0%,
-        color-mix(in srgb, var(--vfl-obsidian) 30%, transparent) 55%,
-        color-mix(in srgb, var(--vfl-obsidian) 82%, transparent) 85%,
-        var(--vfl-obsidian) 100%
-      ),
-      linear-gradient(
-        to bottom,
-        color-mix(in srgb, var(--vfl-obsidian) 70%, transparent) 0%,
-        color-mix(in srgb, var(--vfl-obsidian) 25%, transparent) 40%,
-        color-mix(in srgb, var(--vfl-obsidian) 80%, transparent) 85%,
-        var(--vfl-obsidian) 100%
-      ),
-      var(--hero-bg-image) center 65% / contain no-repeat,
+        transparent 42%,
+        color-mix(in srgb, var(--vfl-obsidian) 55%, transparent) 52%,
+        var(--vfl-obsidian) 65%),
+      var(--hero-bg-image) center top / auto 58% no-repeat,
       var(--vfl-obsidian);
   }
 
   .md-typeset .hero::before {
-    top: 10%;
+    top: auto;
+    bottom: 8%;
     left: 50%;
     transform: translateX(-50%);
     width: 90%;
-    height: 40%;
+    height: 35%;
   }
 }
 
-/* Phones — shrink padding, tighten the vignette against the art */
 @media (max-width: 768px) {
   .md-typeset .hero {
-    min-height: 90vh;
-    min-height: 90dvh;
-    padding: 4rem 1.2rem 3rem;
+    min-height: 95vh;
+    min-height: 95dvh;
+    padding: 2rem 1.2rem 2.8rem;
     background:
-      radial-gradient(
-        ellipse 100% 50% at center 68%,
+      linear-gradient(to bottom,
         transparent 0%,
-        color-mix(in srgb, var(--vfl-obsidian) 35%, transparent) 50%,
-        color-mix(in srgb, var(--vfl-obsidian) 85%, transparent) 82%,
-        var(--vfl-obsidian) 100%
-      ),
-      linear-gradient(
-        to bottom,
-        color-mix(in srgb, var(--vfl-obsidian) 80%, transparent) 0%,
-        color-mix(in srgb, var(--vfl-obsidian) 30%, transparent) 35%,
-        color-mix(in srgb, var(--vfl-obsidian) 85%, transparent) 82%,
-        var(--vfl-obsidian) 100%
-      ),
-      var(--hero-bg-image) center 72% / 90% auto no-repeat,
+        transparent 40%,
+        color-mix(in srgb, var(--vfl-obsidian) 60%, transparent) 50%,
+        var(--vfl-obsidian) 62%),
+      var(--hero-bg-image) center top / auto 52% no-repeat,
       var(--vfl-obsidian);
   }
 }
 
-/* Small phones — drop the art further down, make more room for copy */
 @media (max-width: 480px) {
   .md-typeset .hero {
-    padding: 3rem 1rem 2.5rem;
+    padding: 1.8rem 1rem 2.5rem;
     background:
-      radial-gradient(
-        ellipse 120% 45% at center 72%,
+      linear-gradient(to bottom,
         transparent 0%,
-        color-mix(in srgb, var(--vfl-obsidian) 40%, transparent) 45%,
-        color-mix(in srgb, var(--vfl-obsidian) 88%, transparent) 80%,
-        var(--vfl-obsidian) 100%
-      ),
-      linear-gradient(
-        to bottom,
-        var(--vfl-obsidian) 0%,
-        color-mix(in srgb, var(--vfl-obsidian) 55%, transparent) 25%,
-        color-mix(in srgb, var(--vfl-obsidian) 88%, transparent) 80%,
-        var(--vfl-obsidian) 100%
-      ),
-      var(--hero-bg-image) center 78% / 100% auto no-repeat,
+        transparent 38%,
+        color-mix(in srgb, var(--vfl-obsidian) 65%, transparent) 48%,
+        var(--vfl-obsidian) 60%),
+      var(--hero-bg-image) center top / auto 46% no-repeat,
       var(--vfl-obsidian);
   }
 }
 
-/* Large desktop — breathe out, let the art claim more real estate */
 @media (min-width: 1440px) {
   .md-typeset .hero {
     padding: 7rem 9vw 6rem;
@@ -263,27 +198,21 @@ body.hero-page .md-content__inner {
   .md-typeset .hero {
     padding: 8rem 10vw 7rem;
     background:
-      radial-gradient(
-        ellipse 55% 70% at 75% 52%,
+      radial-gradient(ellipse 55% 70% at 75% 52%,
         transparent 0%,
         color-mix(in srgb, var(--vfl-obsidian) 20%, transparent) 55%,
         color-mix(in srgb, var(--vfl-obsidian) 70%, transparent) 85%,
-        var(--vfl-obsidian) 100%
-      ),
-      linear-gradient(
-        to right,
+        var(--vfl-obsidian) 100%),
+      linear-gradient(to right,
         var(--vfl-obsidian) 0%,
         color-mix(in srgb, var(--vfl-obsidian) 92%, transparent) 30%,
         color-mix(in srgb, var(--vfl-obsidian) 35%, transparent) 62%,
-        transparent 100%
-      ),
-      linear-gradient(
-        to bottom,
+        transparent 100%),
+      linear-gradient(to bottom,
         color-mix(in srgb, var(--vfl-obsidian) 35%, transparent) 0%,
         transparent 30%,
         transparent 70%,
-        var(--vfl-obsidian) 100%
-      ),
+        var(--vfl-obsidian) 100%),
       var(--hero-bg-image) right center / cover no-repeat,
       var(--vfl-obsidian);
   }
@@ -317,14 +246,25 @@ body.hero-page .md-content__inner {
 
 .md-typeset .hero .hero-buttons {
   display: flex;
-  gap: 1rem;
   justify-content: flex-start;
-  flex-wrap: wrap;
   margin-bottom: 2rem;
+}
+
+.md-typeset .hero .hero-buttons > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 1rem;
+  row-gap: 0.85rem;
+  margin: 0;
 }
 
 @media (max-width: 960px) {
   .md-typeset .hero .hero-buttons {
+    justify-content: center;
+  }
+
+  .md-typeset .hero .hero-buttons > p {
     justify-content: center;
   }
 }
@@ -392,25 +332,33 @@ body.hero-page .md-content__inner {
   border-bottom-color: var(--vfl-violet-light);
 }
 
-/* Hero type + buttons — responsive scaling so phones don't overflow */
 @media (max-width: 768px) {
   .md-typeset .hero h1 {
     font-size: clamp(2rem, 8vw, 2.8rem);
     max-width: 16ch;
     margin-bottom: 0.5rem;
   }
+
   .md-typeset .hero .hero-subtitle {
     font-size: clamp(0.85rem, 2.4vw, 1rem);
     margin-bottom: 1.4rem;
     max-width: 36ch;
   }
+
   .md-typeset .hero .hero-buttons {
     width: 100%;
-    flex-direction: column;
     align-items: center;
-    gap: 0.7rem;
     margin-bottom: 1.4rem;
   }
+
+  .md-typeset .hero .hero-buttons > p {
+    flex-direction: column;
+    row-gap: 0.6rem;
+    column-gap: 0;
+    width: 100%;
+    align-items: center;
+  }
+
   .hero-buttons .md-button {
     min-width: 0;
     width: 80%;
@@ -418,6 +366,7 @@ body.hero-page .md-content__inner {
     padding: 0.7rem 1.4rem !important;
     font-size: 0.8rem !important;
   }
+
   .hero-modes {
     font-size: 0.7rem;
     letter-spacing: 0.14em;
@@ -428,26 +377,25 @@ body.hero-page .md-content__inner {
   .md-typeset .hero h1 {
     font-size: clamp(1.7rem, 9vw, 2.3rem);
   }
+
   .md-typeset .hero .hero-subtitle {
     font-size: 0.82rem;
     max-width: 32ch;
     padding: 0 0.3rem;
   }
+
   .hero-buttons .md-button {
     width: 90%;
     max-width: 240px;
     font-size: 0.74rem !important;
     padding: 0.6rem 1.1rem !important;
   }
+
   .hero-modes {
     font-size: 0.62rem;
     letter-spacing: 0.1em;
   }
 }
-
-/* ==========================================================================
-   Scroll indicator
-   ========================================================================== */
 
 .scroll-hint {
   text-align: center;
@@ -469,13 +417,16 @@ body.hero-page .md-content__inner {
 }
 
 @keyframes hint-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(6px); }
-}
 
-/* ==========================================================================
-   Landing sections — scroll reveal
-   ========================================================================== */
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(6px);
+  }
+}
 
 .landing-section {
   width: 100vw;
@@ -527,10 +478,6 @@ body.hero-page .md-content__inner {
   color: var(--vfl-violet-pale);
 }
 
-/* ==========================================================================
-   Pipeline flow
-   ========================================================================== */
-
 .pipeline-flow {
   display: flex;
   justify-content: center;
@@ -553,7 +500,6 @@ body.hero-page .md-content__inner {
   backdrop-filter: blur(6px);
 }
 
-/* Force a clean 3×2 grid on phones instead of orphan wrap */
 @media (max-width: 768px) {
   .pipeline-flow {
     display: grid;
@@ -561,14 +507,17 @@ body.hero-page .md-content__inner {
     gap: 0.6rem;
     margin: 2rem 0 1rem;
   }
+
   .pipeline-step {
     min-width: 0;
     padding: 0.8rem 0.5rem;
     gap: 0.3rem;
   }
+
   .step-icon {
     font-size: 1.4rem;
   }
+
   .step-label {
     font-size: 0.65rem;
   }
@@ -598,10 +547,6 @@ body.hero-page .md-content__inner {
   margin-top: 0.5rem;
   color: var(--vfl-violet-pale);
 }
-
-/* ==========================================================================
-   Feature grid
-   ========================================================================== */
 
 .feature-grid {
   display: grid;
@@ -674,10 +619,6 @@ body.hero-page .md-content__inner {
   font-size: 0.85em;
 }
 
-/* ==========================================================================
-   Tech stack
-   ========================================================================== */
-
 .tech-stack {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -699,10 +640,6 @@ body.hero-page .md-content__inner {
   color: var(--vfl-violet-light);
   margin-right: 0.4rem;
 }
-
-/* ==========================================================================
-   CTA + footer
-   ========================================================================== */
 
 .cta-section {
   background: linear-gradient(180deg, var(--vfl-graphite) 0%, var(--vfl-obsidian) 100%);
@@ -747,10 +684,6 @@ body.hero-page .md-content__inner {
 .landing-footer a:hover {
   color: var(--vfl-violet-light);
 }
-
-/* ==========================================================================
-   Global overrides — keep type crisp
-   ========================================================================== */
 
 .md-typeset h1,
 .md-typeset h2 {

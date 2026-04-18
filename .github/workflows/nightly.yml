@@ -44,6 +44,9 @@ jobs:
       - name: Build Rust extension (release)
         run: uv run maturin develop --release --uv
 
+      - name: Hermetic convergence tests (shard + Dirichlet, no network)
+        run: uv run pytest tests/test_convergence.py -v
+
       - name: Cache MNIST dataset
         uses: actions/cache@v4
         with:

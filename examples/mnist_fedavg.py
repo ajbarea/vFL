@@ -27,16 +27,16 @@ from pathlib import Path
 
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 from velocity import _core
+from velocity.partition import shard
 from velocity.training import (
     ClientData,
     evaluate,
     layer_shapes,
     layers_to_state_dict,
     local_train,
-    non_iid_shard_partition,
     state_dict_to_layers,
 )
 
@@ -77,12 +77,19 @@ def main() -> None:
     train_set = datasets.MNIST(DATA_ROOT, train=True, download=True, transform=transform)
     test_set = datasets.MNIST(DATA_ROOT, train=False, download=True, transform=transform)
 
-    client_subsets = non_iid_shard_partition(
-        train_set, num_clients=NUM_CLIENTS, shards_per_client=SHARDS_PER_CLIENT, seed=SEED
+    train_labels = [int(t) for t in train_set.targets]
+    client_indices = shard(
+        train_labels,
+        num_clients=NUM_CLIENTS,
+        shards_per_client=SHARDS_PER_CLIENT,
+        seed=SEED,
     )
     clients = [
-        ClientData(loader=DataLoader(s, batch_size=BATCH_SIZE, shuffle=True), num_samples=len(s))
-        for s in client_subsets
+        ClientData(
+            loader=DataLoader(Subset(train_set, idx), batch_size=BATCH_SIZE, shuffle=True),
+            num_samples=len(idx),
+        )
+        for idx in client_indices
     ]
     test_loader = DataLoader(test_set, batch_size=512)
 
