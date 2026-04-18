@@ -6,28 +6,26 @@ threading.local; we reset it per-test so `VFL_DB_PATH` actually takes effect.
 
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 
 import pytest
 from velocity import db
 
 
+def _drop_thread_local_conn() -> None:
+    if hasattr(db._LOCAL, "conn"):
+        with contextlib.suppress(sqlite3.Error):
+            db._LOCAL.conn.close()
+        del db._LOCAL.conn
+
+
 @pytest.fixture(autouse=True)
 def _isolate_db(tmp_path, monkeypatch):
     monkeypatch.setenv("VFL_DB_PATH", str(tmp_path / "experiments.db"))
-    if hasattr(db._LOCAL, "conn"):
-        try:
-            db._LOCAL.conn.close()
-        except sqlite3.Error:
-            pass
-        del db._LOCAL.conn
+    _drop_thread_local_conn()
     yield
-    if hasattr(db._LOCAL, "conn"):
-        try:
-            db._LOCAL.conn.close()
-        except sqlite3.Error:
-            pass
-        del db._LOCAL.conn
+    _drop_thread_local_conn()
 
 
 def test_db_path_honours_env(tmp_path, monkeypatch):
@@ -168,12 +166,11 @@ def test_active_hypotheses_filters_status_and_user():
 
 
 def test_foreign_keys_block_orphan_round():
-    with pytest.raises(sqlite3.IntegrityError):
-        with db.connect() as c:
-            c.execute(
-                "INSERT INTO rounds(run_id, round_num, num_clients) VALUES (?, ?, ?)",
-                ("does-not-exist", 1, 2),
-            )
+    with pytest.raises(sqlite3.IntegrityError), db.connect() as c:
+        c.execute(
+            "INSERT INTO rounds(run_id, round_num, num_clients) VALUES (?, ?, ?)",
+            ("does-not-exist", 1, 2),
+        )
 
 
 def test_explicit_path_uses_short_lived_connection(tmp_path):
@@ -186,11 +183,10 @@ def test_explicit_path_uses_short_lived_connection(tmp_path):
 
 def test_connect_rolls_back_on_exception():
     db.ensure_user("alice")
-    with pytest.raises(RuntimeError):
-        with db.connect() as c:
-            c.execute(
-                "INSERT INTO users(user_id, display_name) VALUES ('temp', 'Temp')",
-            )
-            raise RuntimeError("boom")
+    with pytest.raises(RuntimeError), db.connect() as c:
+        c.execute(
+            "INSERT INTO users(user_id, display_name) VALUES ('temp', 'Temp')",
+        )
+        raise RuntimeError("boom")
     with db.connect() as c:
         assert c.execute("SELECT COUNT(*) FROM users WHERE user_id = 'temp'").fetchone()[0] == 0
