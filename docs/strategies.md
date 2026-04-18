@@ -39,13 +39,15 @@ minimize over w:   F_k(w) + (μ/2) · ‖w - w_t‖²
 
 **Use when** clients are heterogeneous — differing data distributions, compute budgets, or local epoch counts. The proximal term `μ` dampens client drift.
 
-| Parameter | Default | Effect |
+| Parameter | Value | Effect |
 |---|---|---|
 | `mu` | `0.01` | Higher → more conservative updates, slower convergence, better stability on non-IID data. |
 
 ```python
 server = VelocityServer(model_id=..., dataset=..., strategy=Strategy.FedProx)
 ```
+
+> **Note** — `Strategy.FedProx` in the Python surface uses a fixed `mu = 0.01`. To sweep `mu`, drop down to the Rust constructor (`velocity._core.Strategy.fed_prox(mu)`) or extend `VelocityServer._map_strategy` to plumb it through.
 
 ---
 

@@ -60,7 +60,7 @@ vFL/
 │   │   ├── lib.rs          # PyO3 module definition
 │   │   ├── strategy.rs     # FedAvg / FedProx / FedMedian
 │   │   ├── orchestrator.rs # round state + attack dispatch
-│   │   └── attacks/        # model_poisoning, sybil, noise, label_flipping
+│   │   └── security.rs     # attack types + simulations (model_poisoning, sybil_nodes, gaussian_noise, label_flipping)
 │   └── Cargo.toml
 ├── python/velocity/
 │   ├── __init__.py         # re-exports VelocityServer, Strategy
