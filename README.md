@@ -1,5 +1,7 @@
 # ⚡ VelocityFL (vFL)
 
+![VelocityFL](docs/assets/velocity-hero.png)
+
 [![Tests](https://github.com/ajbarea/vFL/actions/workflows/tests.yml/badge.svg)](https://github.com/ajbarea/vFL/actions/workflows/tests.yml)
 [![Documentation](https://github.com/ajbarea/vFL/actions/workflows/docs.yml/badge.svg)](https://github.com/ajbarea/vFL/actions/workflows/docs.yml)
 [![Codecov](https://codecov.io/gh/ajbarea/vFL/graph/badge.svg?token=rcYwirIHWk)](https://codecov.io/gh/ajbarea/vFL)
