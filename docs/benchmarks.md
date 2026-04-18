@@ -123,11 +123,3 @@ single-digit-percent regressions will be invisible
 on this hardware. The [CodSpeed](https://codspeed.io) macro runners are
 the answer for continuous measurement — tracked as a follow-up, not yet
 integrated.
-
-## Follow-ups
-
-- [ ] CodSpeed CI integration (bare-metal macro runners, PR-comment perf
-  tracking)
-- [ ] Buffer-protocol PyO3 path to halve FFI marshaling cost
-- [ ] Include a crowd-scale tier (50–100 clients) once CodSpeed lands so
-  the noise floor is tight enough to see the effect
