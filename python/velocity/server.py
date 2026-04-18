@@ -235,14 +235,21 @@ class VelocityServer:
         )
 
     def _map_strategy(self) -> Any:
-        """Convert the Python :class:`Strategy` enum to a Rust Strategy object."""
-        if self.strategy == Strategy.FedAvg:
-            return _rust.Strategy.fed_avg()
-        if self.strategy == Strategy.FedProx:
-            return _rust.Strategy.fed_prox(0.01)
-        if self.strategy == Strategy.FedMedian:
-            return _rust.Strategy.fed_median()
-        raise ValueError(f"Unsupported strategy: {self.strategy}")
+        """Convert the Python :class:`Strategy` enum to a Rust Strategy object.
+
+        Registry is the single place to add a new strategy on the Python side —
+        Rust still owns the kernel, Python just maps the enum value to the
+        PyO3 factory.
+        """
+        factories = {
+            Strategy.FedAvg: _rust.Strategy.fed_avg,
+            Strategy.FedProx: lambda: _rust.Strategy.fed_prox(0.01),
+            Strategy.FedMedian: _rust.Strategy.fed_median,
+        }
+        factory = factories.get(self.strategy)
+        if factory is None:
+            raise ValueError(f"Unsupported strategy: {self.strategy}")
+        return factory()
 
     def _run_single_round(self) -> dict[str, Any]:
         """Generate mock client updates and execute one round."""

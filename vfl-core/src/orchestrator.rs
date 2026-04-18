@@ -15,6 +15,10 @@ pub struct ExperimentConfig {
 }
 
 /// Per-round summary produced by the orchestrator.
+///
+/// `global_loss` is whatever the caller computed on a held-out set after
+/// aggregation. The Rust core does not see the model or data, so it cannot
+/// invent a meaningful loss — `NaN` means "caller didn't report one."
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RoundSummary {
     pub round: usize,
@@ -59,14 +63,31 @@ impl Orchestrator {
         self.pending_attacks.push(attack);
     }
 
+    /// Overwrite the global model weights (e.g., to seed from a real
+    /// PyTorch initialisation rather than the default zeros).
+    pub fn set_global_weights(&mut self, weights: HashMap<String, Vec<f32>>) {
+        self.global_weights = weights;
+    }
+
+    /// Whether any attacks are queued for the next round.
+    ///
+    /// Callers (notably the PyO3 layer) use this to pick between the
+    /// owned-updates path (needed when attacks mutate client updates) and
+    /// the read-only fast path (no cloning).
+    pub fn has_pending_attacks(&self) -> bool {
+        !self.pending_attacks.is_empty()
+    }
+
     /// Run a single federated learning round.
     ///
     /// `client_updates` must contain at least `config.min_clients` updates.
+    /// `reported_loss` is the global-model loss the caller computed on its
+    /// own evaluation set after the previous round (`None` records `NaN`).
     pub fn run_round(
         &mut self,
         mut client_updates: Vec<ClientUpdate>,
+        reported_loss: Option<f64>,
     ) -> Result<RoundSummary, String> {
-        let round = self.history.len() + 1;
         if client_updates.len() < self.config.min_clients {
             return Err(format!(
                 "Insufficient clients: need {}, got {}",
@@ -77,7 +98,6 @@ impl Orchestrator {
 
         let mut attack_results: Vec<AttackResult> = Vec::new();
 
-        // Apply pending attack simulations
         for attack in self.pending_attacks.drain(..) {
             match attack {
                 crate::security::AttackType::ModelPoisoning { intensity } => {
@@ -118,23 +138,48 @@ impl Orchestrator {
             }
         }
 
-        // Aggregate
-        let new_weights = aggregate(&client_updates, &self.config.strategy)?;
-        self.global_weights = new_weights;
+        self.finalize_round(&client_updates, attack_results, reported_loss)
+    }
 
-        // Compute a simple mock loss (L2 norm of global weights as proxy)
-        let global_loss = self
-            .global_weights
-            .values()
-            .flat_map(|v| v.iter())
-            .map(|&x| (x as f64).powi(2))
-            .sum::<f64>()
-            .sqrt();
+    /// Run a round without cloning client weight data.
+    ///
+    /// Hot path for the no-attack case (every benchmark + most real FL work):
+    /// the PyO3 layer passes a slice of `&ClientUpdate` directly into
+    /// aggregation, skipping the ~40 MB per-round memcpy at large-tier
+    /// shapes. Caller must ensure no attacks are pending.
+    pub fn run_round_readonly<U: std::borrow::Borrow<ClientUpdate>>(
+        &mut self,
+        client_updates: &[U],
+        reported_loss: Option<f64>,
+    ) -> Result<RoundSummary, String> {
+        debug_assert!(
+            self.pending_attacks.is_empty(),
+            "run_round_readonly called with pending attacks — use run_round"
+        );
+        if client_updates.len() < self.config.min_clients {
+            return Err(format!(
+                "Insufficient clients: need {}, got {}",
+                self.config.min_clients,
+                client_updates.len()
+            ));
+        }
+        self.finalize_round(client_updates, Vec::new(), reported_loss)
+    }
+
+    fn finalize_round<U: std::borrow::Borrow<ClientUpdate>>(
+        &mut self,
+        client_updates: &[U],
+        attack_results: Vec<AttackResult>,
+        reported_loss: Option<f64>,
+    ) -> Result<RoundSummary, String> {
+        let round = self.history.len() + 1;
+        let new_weights = aggregate(client_updates, &self.config.strategy)?;
+        self.global_weights = new_weights;
 
         let summary = RoundSummary {
             round,
             num_clients: client_updates.len(),
-            global_loss,
+            global_loss: reported_loss.unwrap_or(f64::NAN),
             attack_results,
         };
         self.history.push(summary.clone());
@@ -152,7 +197,7 @@ impl Orchestrator {
     {
         for r in 0..self.config.rounds {
             let updates = client_provider(r, &self.global_weights);
-            self.run_round(updates)?;
+            self.run_round(updates, None)?;
         }
         Ok(self.history.clone())
     }
@@ -193,17 +238,36 @@ mod tests {
     fn single_round_aggregates_correctly() {
         let mut orch = Orchestrator::new(make_config(1), &make_layer_shapes());
         let updates = vec![make_update(1.0), make_update(3.0)];
-        let summary = orch.run_round(updates).unwrap();
+        let summary = orch.run_round(updates, Some(0.42)).unwrap();
         assert_eq!(summary.round, 1);
+        assert!((summary.global_loss - 0.42).abs() < 1e-9);
         // FedAvg of equal-sample updates: (1+3)/2 = 2
         let w = &orch.global_weights["fc1"];
         assert!((w[0] - 2.0).abs() < 1e-5);
     }
 
     #[test]
+    fn missing_loss_is_nan() {
+        let mut orch = Orchestrator::new(make_config(1), &make_layer_shapes());
+        let summary = orch
+            .run_round(vec![make_update(1.0), make_update(1.0)], None)
+            .unwrap();
+        assert!(summary.global_loss.is_nan());
+    }
+
+    #[test]
+    fn set_global_weights_overrides_init() {
+        let mut orch = Orchestrator::new(make_config(1), &make_layer_shapes());
+        let mut seeded = HashMap::new();
+        seeded.insert("fc1".to_string(), vec![5.0, 5.0, 5.0, 5.0]);
+        orch.set_global_weights(seeded);
+        assert_eq!(orch.global_weights["fc1"][0], 5.0);
+    }
+
+    #[test]
     fn insufficient_clients_returns_error() {
         let mut orch = Orchestrator::new(make_config(1), &make_layer_shapes());
-        let result = orch.run_round(vec![make_update(1.0)]);
+        let result = orch.run_round(vec![make_update(1.0)], None);
         assert!(result.is_err());
     }
 
@@ -221,7 +285,7 @@ mod tests {
         let mut orch = Orchestrator::new(make_config(1), &make_layer_shapes());
         orch.register_attack(crate::security::AttackType::ModelPoisoning { intensity: 1.0 });
         let updates = vec![make_update(1.0), make_update(1.0)];
-        let summary = orch.run_round(updates).unwrap();
+        let summary = orch.run_round(updates, None).unwrap();
         assert!(!summary.attack_results.is_empty());
         assert_eq!(summary.attack_results[0].attack_type, "model_poisoning");
     }

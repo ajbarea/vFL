@@ -1,7 +1,7 @@
 //! vfl-core: Rust core for VelocityFL.
 //!
-//! This crate exposes high-performance FL orchestration, aggregation strategies,
-//! and security/attack simulation via PyO3 Python bindings.
+//! FL orchestration, aggregation strategies, and attack simulation,
+//! exposed to Python via PyO3 bindings.
 
 mod orchestrator;
 mod security;
@@ -126,7 +126,7 @@ impl PyRoundSummary {
 // Orchestrator
 // ---------------------------------------------------------------------------
 
-/// High-performance Rust-backed FL orchestrator.
+/// Rust-backed FL orchestrator.
 ///
 /// Manages training rounds, client aggregation, and attack simulations.
 #[pyclass(name = "Orchestrator")]
@@ -210,24 +210,44 @@ impl PyOrchestrator {
     ///
     /// Args:
     ///     client_updates: List of :class:`ClientUpdate` objects.
+    ///     reported_loss: Loss the caller computed on a held-out set after
+    ///         the previous round's aggregation. Stored on the round summary;
+    ///         omit (or pass ``None``) to record ``NaN``.
     ///
     /// Returns:
     ///     :class:`RoundSummary` for the completed round.
+    #[pyo3(signature = (client_updates, reported_loss=None))]
     fn run_round(
         &mut self,
         client_updates: Vec<PyRef<PyClientUpdate>>,
+        reported_loss: Option<f64>,
     ) -> PyResult<PyRoundSummary> {
-        let updates: Vec<strategy::ClientUpdate> =
-            client_updates.iter().map(|u| u.0.clone()).collect();
-        self.0
-            .run_round(updates)
-            .map(PyRoundSummary)
-            .map_err(PyRuntimeError::new_err)
+        // Fast path: no attacks pending, so client weights are read-only —
+        // hand aggregation a slice of `&ClientUpdate` and skip the
+        // per-round deep clone of every f32 across every layer.
+        let result = if self.0.has_pending_attacks() {
+            let owned: Vec<strategy::ClientUpdate> =
+                client_updates.iter().map(|u| u.0.clone()).collect();
+            self.0.run_round(owned, reported_loss)
+        } else {
+            let refs: Vec<&strategy::ClientUpdate> = client_updates.iter().map(|u| &u.0).collect();
+            self.0.run_round_readonly(&refs, reported_loss)
+        };
+        result.map(PyRoundSummary).map_err(PyRuntimeError::new_err)
     }
 
     /// Current global model weights as a Python dict.
     fn global_weights(&self) -> HashMap<String, Vec<f32>> {
         self.0.global_weights.clone()
+    }
+
+    /// Overwrite the global model weights.
+    ///
+    /// Use this to seed from a real PyTorch initialisation rather than the
+    /// default zeros. Layer names and lengths must match the ``layer_shapes``
+    /// passed at construction time.
+    fn set_global_weights(&mut self, weights: HashMap<String, Vec<f32>>) {
+        self.0.set_global_weights(weights);
     }
 
     /// JSON-serialised experiment history (all completed round summaries).
@@ -262,8 +282,8 @@ fn aggregate(
     updates: Vec<PyRef<PyClientUpdate>>,
     strategy: &PyStrategy,
 ) -> PyResult<HashMap<String, Vec<f32>>> {
-    let raw: Vec<strategy::ClientUpdate> = updates.iter().map(|u| u.0.clone()).collect();
-    crate::strategy::aggregate(&raw, &strategy.0).map_err(PyRuntimeError::new_err)
+    let refs: Vec<&strategy::ClientUpdate> = updates.iter().map(|u| &u.0).collect();
+    crate::strategy::aggregate(&refs, &strategy.0).map_err(PyRuntimeError::new_err)
 }
 
 /// Apply Gaussian noise to a weight dict (in-place simulation).
