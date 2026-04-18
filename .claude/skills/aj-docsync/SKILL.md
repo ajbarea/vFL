@@ -1,5 +1,5 @@
 ---
-name: docsync
+name: aj-docsync
 description: Check a documentation file for drift against the actual codebase — CLI commands, file paths, config keys, function signatures, version numbers, environment variables — and propose corrections. Use when the user wants to audit README.md, docs/*.md, or similar for claims that no longer match reality. Drift usually comes from refactors that forgot to update the docs.
 disable-model-invocation: true
 allowed-tools: Bash Glob Grep Read Edit Agent
@@ -19,10 +19,12 @@ Compare documentation against the code it describes. Find where the docs say one
 - **Version constraints** — Python / Rust / dependency pins. Verify against `pyproject.toml`, `Cargo.toml`, workflow files.
 - **Internal links / anchors** — `[see API](api.md#velocityserver)`. Verify target exists.
 - **Exit codes and error messages** — Verify against the source that produces them.
+- **Performance / comparative claims** — `45× faster`, `under 10 ms`, `scales to 100 clients`, `sub-millisecond aggregation`. Verify against **`docs/benchmarks.md`** (the source of truth) or the bench harnesses (`vfl-core/benches/aggregate.rs`, `tests/bench/test_round_speed.py`). If the claim is not traceable to a measurement, it is drift — propose one of: link to benchmarks, replace with the measured number, or delete. Use the "Unsupported quantitative / comparative claims" section of `.claude/skills/_shared/hate-words.md` as the grep-seed pattern list.
 
 ## Ignore
 
-- Prose / marketing copy ("VelocityFL provides high-performance FL orchestration"). Not a checkable claim.
+- Prose / marketing copy that makes **no quantitative claim** ("VelocityFL provides FL orchestration"). Not a checkable claim.
+- BUT: prose that makes a **quantitative performance or scale claim** IS checkable — see "Performance / comparative claims" above. Don't wave those through as marketing.
 - Roadmap language ("we plan to", "coming soon"). Aspirational, not drift.
 - Code examples that are intentionally illustrative.
 - Screenshots, images, external URLs.
@@ -31,7 +33,7 @@ Compare documentation against the code it describes. Find where the docs say one
 
 1. **Scope.** Input is one doc file or a directory. Default if the user didn't specify: `README.md` + every tracked file under `docs/**/*.md`. For directory scope, fan out (see [Fan-out pattern](#fan-out-pattern)).
 
-   Out of scope — hand off to `/docs-site` instead: `zensical.toml` config drift, `.github/workflows/docs.yml` deploy wiring, `docs/style.css` / `docs/javascripts/` asset maintenance, rendered-site link checks. `/docsync` is claim verification inside markdown prose; docs-site infrastructure is a different skill.
+   Out of scope — hand off to `/aj-docs-site` instead: `zensical.toml` config drift, `.github/workflows/docs.yml` deploy wiring, `docs/style.css` / `docs/javascripts/` asset maintenance, rendered-site link checks. `/aj-docsync` is claim verification inside markdown prose; docs-site infrastructure is a different skill.
 
 2. **Extract claims.** For the doc in scope, list every checkable claim with its exact string and line number. Categorize by the list above.
 
@@ -69,7 +71,7 @@ For a whole `docs/` directory, spawn one `Explore` subagent per doc file. Each r
 
 ## While you're in there
 
-A doc update is also a chance to trim slop. If a fix requires rewriting a sentence, apply the `.claude/skills/_shared/hate-words.md` filter before you commit to the new wording — don't let the rewrite reintroduce "robust", "seamless", "effortlessly" and friends. If the file has heavy slop unrelated to the drift, mention it once and suggest running `/deslop` after — don't quietly expand scope.
+A doc update is also a chance to trim slop. If a fix requires rewriting a sentence, apply the `.claude/skills/_shared/hate-words.md` filter before you commit to the new wording — don't let the rewrite reintroduce "robust", "seamless", "effortlessly" and friends. If the file has heavy slop unrelated to the drift, mention it once and suggest running `/aj-deslop` after — don't quietly expand scope.
 
 ## Why this skill is quiet
 

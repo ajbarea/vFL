@@ -1,5 +1,5 @@
 ---
-name: deslop
+name: aj-deslop
 description: Scan the codebase for AI-generated slop in comments and docstrings — temporal markers, self-referential AI framing, narrative WHAT-comments, marketing padding — and propose tightened rewrites. Use when the user wants to audit pending changes or the whole codebase for verbose, low-value commentary left by other assistants (Copilot, Gemini, GPT, etc.).
 disable-model-invocation: true
 allowed-tools: Bash Glob Grep Read Edit Agent
@@ -17,6 +17,7 @@ Find and remove low-value, AI-generated commentary in source files. Keep comment
 - **Self-referential AI framing** — "designed so an AI assistant who did not see the live terminal can reconstruct", "AI-DEBUG HINTS", "helps LLMs understand", "for model consumption".
 - **Narrative WHAT-comments** — `# Now we iterate through the list`, `# Return the result`. If the identifier already tells you, the comment is dead weight.
 - **Marketing language** — "robust", "comprehensive", "elegant", "best-practice", "production-ready", "seamless", "powerful", "effortlessly", "with ease", "painlessly", "simply", "just" (as filler), "out of the box", "blazingly", "lightning-fast", "battle-tested", "state-of-the-art", "cutting-edge" when describing your own code. See `.claude/skills/_shared/hate-words.md` for the canonical cross-skill list.
+- **Unmeasured performance claims** — "10× faster", "sub-millisecond", "scales to thousands of clients", "near-zero overhead" in comments/docstrings that don't cite a measurement. The source of truth for this repo is **`docs/benchmarks.md`** (plus `tests/bench/` and `vfl-core/benches/`). Any numeric performance/scale claim that isn't traceable to one of those is slop — propose deletion, or a link to the measurement. See the "Unsupported quantitative / comparative claims" section in `.claude/skills/_shared/hate-words.md`.
 - **Task-context rot** — "added for issue #123", "fix for the auth bug", `TODO(copilot):`. Belongs in the PR description, not the source.
 - **Signature restatement** — docstrings that only repeat the type annotations in prose.
 - **Excessive hedging** — "we might want to", "in some cases this could potentially", "it's important to note that".
@@ -46,7 +47,7 @@ User-specific calibration — patterns the user flags most often from their own 
 
 1. **Scope.** Default to the whole repo minus vendored/generated paths:
    - Skip: `target/`, `.venv/`, `node_modules/`, `dist/`, `build/`, `site/`, `__pycache__/`, `.ruff_cache/`, `.pytest_cache/`, `uv.lock`, `Cargo.lock`, `docs/assets/`, `logs/`
-   - If the user passed a path (e.g. `/deslop scripts/`), restrict to that.
+   - If the user passed a path (e.g. `/aj-deslop scripts/`), restrict to that.
 
 2. **Fan out with Explore subagents in parallel.** One subagent per area, all dispatched in a single message. Typical split for this repo:
    - Rust sources: `vfl-core/src/**/*.rs`
@@ -79,6 +80,7 @@ Use these to tune your threshold — the user and I have already agreed on these
 - `"The log is designed so an AI assistant who did not see the live terminal can reconstruct what happened..."` → trimmed to a factual description of what the log contains
 - `AI-DEBUG HINTS` section header → `DEBUG HINTS`, body shortened
 - `"so AI debuggers can recognise the 'not on PATH' case unambiguously"` → `"Missing-binary failures are surfaced as rc=127."`
+- `"# Lightning-fast aggregation, sub-millisecond per round."` → delete (unmeasured; `docs/benchmarks.md` shows 2.6µs–75ms depending on tier). If a number is load-bearing, replace with the measured figure and link to benchmarks.
 
 **Kept (not slop):**
 

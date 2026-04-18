@@ -1,5 +1,5 @@
 ---
-name: audit
+name: aj-audit
 description: Run the repo's make targets in dependency order (setup → fix → granular lint → granular test → end-to-end) and verify each command's terminal output against its `logs/dev-<ts>-<cmd>.log` archive. Supports a full 13-step audit or a fast 5-step variant (setup + `make ci`). Use when the user wants end-to-end validation that the toolchain is clean and the archives match reality.
 disable-model-invocation: true
 allowed-tools: Bash Glob Read Grep Write

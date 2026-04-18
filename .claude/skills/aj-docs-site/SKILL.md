@@ -1,13 +1,13 @@
 ---
-name: docs-site
-description: Maintain the Zensical-powered documentation site — nav ordering in zensical.toml, the docs GitHub Pages workflow, style.css and reveal.js assets, and link/anchor integrity across docs/**/*.md. Sibling of /docsync (which only verifies prose claims against code). Use when the user wants the site itself audited — config, deploy pipeline, theming, assets, cross-page links — rather than content accuracy.
+name: aj-docs-site
+description: Maintain the Zensical-powered documentation site — nav ordering in zensical.toml, the docs GitHub Pages workflow, style.css and reveal.js assets, and link/anchor integrity across docs/**/*.md. Sibling of /aj-docsync (which only verifies prose claims against code). Use when the user wants the site itself audited — config, deploy pipeline, theming, assets, cross-page links — rather than content accuracy.
 disable-model-invocation: true
 allowed-tools: Bash Glob Grep Read Edit Agent
 ---
 
 # Docs-Site
 
-Audit and maintain the documentation site as a build/deploy artifact. `/docsync` answers "does this claim match the code?"; `/docs-site` answers "does this site build, deploy, render, and link correctly?"
+Audit and maintain the documentation site as a build/deploy artifact. `/aj-docsync` answers "does this claim match the code?"; `/aj-docs-site` answers "does this site build, deploy, render, and link correctly?"
 
 ## Surface
 
@@ -74,14 +74,14 @@ For a narrow request ("just check the nav"), do it inline without subagents.
 ## Don't touch
 
 - `site/` (generated build output, gitignored).
-- Content of `docs/**/*.md` — that's `/docsync` territory. The only content touch allowed here is fixing a broken anchor reference or adding a missing heading when the link is clearly the authoritative side.
+- Content of `docs/**/*.md` — that's `/aj-docsync` territory. The only content touch allowed here is fixing a broken anchor reference or adding a missing heading when the link is clearly the authoritative side.
 - Third-party workflows (anything not under `.github/workflows/docs.yml` unless it also affects docs deploy).
 
 ## Hand-offs
 
-- Prose drift or stale commands in docs pages → `/docsync`.
-- Slop in doc prose → `/deslop` with `docs/` scope.
-- Rewriting unclear prose → `/reslop`.
+- Prose drift or stale commands in docs pages → `/aj-docsync`.
+- Slop in doc prose → `/aj-deslop` with `docs/` scope.
+- Rewriting unclear prose → `/aj-reslop`.
 
 ## Why this skill is quiet
 
