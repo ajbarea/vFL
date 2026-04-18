@@ -1,5 +1,5 @@
 ---
-name: ci-audit
+name: aj-ci-audit
 description: Audit the latest GitHub Actions workflow runs on the current branch/PR for warnings, errors, failures, deprecation notices, and other log noise — then fix what's fixable in-repo (workflow YAML, configs, source, tests). Hands commit + push back to the developer. Use after CI finishes and before merge, or whenever the user says "audit the PR / workflow logs".
 disable-model-invocation: true
 allowed-tools: Bash(gh *) Bash(git branch --show-current) Bash(git rev-parse *) Bash(git log *) Glob Grep Read Edit Write
@@ -107,7 +107,7 @@ Numbered findings, one per item. Keep each line tight — link to the file, not 
 ## Rules
 
 - Do not run `git add`, `git commit`, `git push`, `gh pr merge`, or `gh run rerun`. That's the developer's call.
-- Do not edit `logs/` — those are `/audit`'s territory and come from local make runs, not CI.
+- Do not edit `logs/` — those are `/aj-audit`'s territory and come from local make runs, not CI.
 - Do not open or modify PRs / issues. Reading PR metadata via `gh pr view` is fine; writing is not.
 - If a finding requires a destructive or high-blast-radius change (removing a check, disabling a gate, force-pushing), stop and ask. Don't paper over a real failure.
 - If the latest run is still `in_progress`, say so and stop — don't audit a partial log.

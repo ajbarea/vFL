@@ -9,14 +9,14 @@ All skills use `disable-model-invocation: true`, so they fire only when you type
 ```text
 .claude/skills/
 ├── _shared/
-│   └── hate-words.md          # canonical slop glossary (shared by /deslop, /reslop, /docsync)
-├── audit/SKILL.md
-├── auto-commit/SKILL.md
-├── ci-audit/SKILL.md
-├── deslop/SKILL.md
-├── docs-site/SKILL.md
-├── docsync/SKILL.md
-└── reslop/SKILL.md
+│   └── hate-words.md             # canonical slop glossary (shared by /aj-deslop, /aj-reslop, /aj-docsync)
+├── aj-audit/SKILL.md
+├── aj-auto-commit/SKILL.md
+├── aj-ci-audit/SKILL.md
+├── aj-deslop/SKILL.md
+├── aj-docs-site/SKILL.md
+├── aj-docsync/SKILL.md
+└── aj-reslop/SKILL.md
 ```
 
 Edit `.claude/skills/_shared/hate-words.md` — not the individual skills — when adding or adjusting slop patterns.
@@ -25,24 +25,24 @@ Edit `.claude/skills/_shared/hate-words.md` — not the individual skills — wh
 
 | Command | Purpose | Writes | Reads |
 |---|---|---|---|
-| `/auto-commit` | Group pending git changes into a conventional-commit plan | `COMMITS.md` (with staleness header + `## Notes` preservation) | `git status`, `git diff`, `git log` |
-| `/audit` | Run the make-target matrix (full 13-step or fast 5-step) and verify each archive | — (read-only) | `logs/dev-*-<cmd>.log` |
-| `/ci-audit` | Audit GitHub Actions runs on the current branch/PR and fix workflow/config/source issues (no commit/push) | Edits on confirmation | `gh run view`, `.github/workflows/**` |
-| `/deslop` | Find AI-generated slop in comments and docstrings | Edits on confirmation | `python/**`, `vfl-core/**`, `scripts/**`, `tests/**` |
-| `/reslop` | Rewrite docstrings grounded in the actual implementation, call sites, and tests | Edits on confirmation | Same scope as `/deslop` |
-| `/docsync` | Verify prose claims in `README.md` + `docs/**/*.md` against the code | Edits on confirmation | Docs + source |
-| `/docs-site` | Maintain zensical config, docs workflow, assets, internal link integrity | Edits on confirmation | `zensical.toml`, `.github/workflows/docs.yml`, `docs/**` |
+| `/aj-auto-commit` | Group pending git changes into a conventional-commit plan | `COMMITS.md` (with staleness header + `## Notes` preservation) | `git status`, `git diff`, `git log` |
+| `/aj-audit` | Run the make-target matrix (full 13-step or fast 5-step) and verify each archive | — (read-only) | `logs/dev-*-<cmd>.log` |
+| `/aj-ci-audit` | Audit GitHub Actions runs on the current branch/PR and fix workflow/config/source issues (no commit/push) | Edits on confirmation | `gh run view`, `.github/workflows/**` |
+| `/aj-deslop` | Find AI-generated slop in comments and docstrings | Edits on confirmation | `python/**`, `vfl-core/**`, `scripts/**`, `tests/**` |
+| `/aj-reslop` | Rewrite docstrings grounded in the actual implementation, call sites, and tests | Edits on confirmation | Same scope as `/aj-deslop` |
+| `/aj-docsync` | Verify prose claims in `README.md` + `docs/**/*.md` against the code | Edits on confirmation | Docs + source |
+| `/aj-docs-site` | Maintain zensical config, docs workflow, assets, internal link integrity | Edits on confirmation | `zensical.toml`, `.github/workflows/docs.yml`, `docs/**` |
 
-`/deslop` removes slop; `/reslop` rewrites it grounded in the code; `/docsync` audits claims; `/docs-site` audits the site as a deployed artifact. `/audit` checks local `make` output; `/ci-audit` checks GitHub Actions output — sibling skills for the two rings of validation. They're designed to hand off to each other rather than overlap.
+`/aj-deslop` removes slop; `/aj-reslop` rewrites it grounded in the code; `/aj-docsync` audits claims; `/aj-docs-site` audits the site as a deployed artifact. `/aj-audit` checks local `make` output; `/aj-ci-audit` checks GitHub Actions output — sibling skills for the two rings of validation. They're designed to hand off to each other rather than overlap.
 
 ## Typical workflow
 
 1. Edit code, run `make validate` locally.
-2. `/auto-commit` → review the generated `COMMITS.md`, commit per group, open a PR.
-3. `/audit` before merge to confirm the full matrix is green and the archives agree with terminal output.
-4. `/ci-audit` once GitHub Actions finishes to triage warnings/errors/deprecations; apply fixes, then commit + push yourself.
-5. `/docsync` if any user-facing prose needs a pass.
-6. `/docs-site` before a docs release if `zensical.toml` or workflow paths have changed.
+2. `/aj-auto-commit` → review the generated `COMMITS.md`, commit per group, open a PR.
+3. `/aj-audit` before merge to confirm the full matrix is green and the archives agree with terminal output.
+4. `/aj-ci-audit` once GitHub Actions finishes to triage warnings/errors/deprecations; apply fixes, then commit + push yourself.
+5. `/aj-docsync` if any user-facing prose needs a pass.
+6. `/aj-docs-site` before a docs release if `zensical.toml` or workflow paths have changed.
 
 ## Why this is tracked in the repo
 

@@ -1,21 +1,22 @@
 ---
-name: reslop
-description: Rewrite docstrings and comments by reading the actual implementation, call sites, and tests — produce grounded, factual prose instead of deleting slop. Sibling of /deslop. Use when the user wants to replace overhyped or hallucinated documentation with accurate one- or two-line descriptions derived from what the code actually does.
+name: aj-reslop
+description: Rewrite docstrings and comments by reading the actual implementation, call sites, and tests — produce grounded, factual prose instead of deleting slop. Sibling of /aj-deslop. Use when the user wants to replace overhyped or hallucinated documentation with accurate one- or two-line descriptions derived from what the code actually does.
 disable-model-invocation: true
 allowed-tools: Bash Glob Grep Read Edit Agent
 ---
 
 # Reslop
 
-Generative sibling of `/deslop`. Where `/deslop` deletes low-value prose, `/reslop` *rewrites* it — grounded in the code, not in marketing instincts.
+Generative sibling of `/aj-deslop`. Where `/aj-deslop` deletes low-value prose, `/aj-reslop` *rewrites* it — grounded in the code, not in marketing instincts.
 
 ## Hard rules
 
 1. **Never invent behavior.** If the code doesn't show it, don't claim it. No "thread-safe" unless the code actually synchronizes. No "idempotent" unless it demonstrably is. No "future-proof" ever.
-2. **No hate-words.** See `.claude/skills/_shared/hate-words.md` — the rewrite must not reintroduce slop you came to fix.
-3. **Don't restate the signature.** Type annotations already tell the reader the types. Docstring prose is for purpose and non-obvious constraints.
-4. **Prefer shorter.** One sentence beats three. If nothing needs saying, say nothing — hand the target back to `/deslop` to delete outright.
-5. **Match surrounding style.** If the module's other docstrings are one-liners, yours is too. If they use Google-style `Args:` / `Returns:`, match that — only if the arguments genuinely need explanation beyond their types.
+2. **Never invent performance claims.** Rewrites must not introduce numeric speedups, throughput figures, latency bounds, or scale claims unless they are cited in **`docs/benchmarks.md`** (or the harnesses at `tests/bench/` / `vfl-core/benches/`). If the original prose said "10× faster" and you can't find a measurement that supports it, strike the claim — don't rephrase it. The "Unsupported quantitative / comparative claims" section of `.claude/skills/_shared/hate-words.md` is the pattern list.
+3. **No hate-words.** See `.claude/skills/_shared/hate-words.md` — the rewrite must not reintroduce slop you came to fix.
+4. **Don't restate the signature.** Type annotations already tell the reader the types. Docstring prose is for purpose and non-obvious constraints.
+5. **Prefer shorter.** One sentence beats three. If nothing needs saying, say nothing — hand the target back to `/aj-deslop` to delete outright.
+6. **Match surrounding style.** If the module's other docstrings are one-liners, yours is too. If they use Google-style `Args:` / `Returns:`, match that — only if the arguments genuinely need explanation beyond their types.
 
 ## Workflow
 
@@ -42,7 +43,7 @@ Generative sibling of `/deslop`. Where `/deslop` deletes low-value prose, `/resl
 ## What to leave alone
 
 - Accurate docstrings under ~2 lines that don't use hate-words.
-- Load-bearing WHY comments (same Keep list as `/deslop`).
+- Load-bearing WHY comments (same Keep list as `/aj-deslop`).
 - Generated/stub files (`*.pyi`, protobuf output).
 - Tests — their names are the documentation; don't over-describe.
 - License headers, SPDX identifiers, shebangs.
@@ -60,9 +61,9 @@ python/velocity/server.py:120  _load_rust_core
 
 Include the `why:` line only when the edit is borderline — skip it for obvious cuts.
 
-## When to hand off to /deslop
+## When to hand off to /aj-deslop
 
-If the "fix" is just deleting the docstring entirely (because nothing about the function needs explaining and the name is clear), say so and let `/deslop` handle it. Don't invent a rewrite to fill the slot.
+If the "fix" is just deleting the docstring entirely (because nothing about the function needs explaining and the name is clear), say so and let `/aj-deslop` handle it. Don't invent a rewrite to fill the slot.
 
 ## Why this skill is quiet
 

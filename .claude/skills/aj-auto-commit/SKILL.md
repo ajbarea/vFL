@@ -1,5 +1,5 @@
 ---
-name: auto-commit-claude
+name: aj-auto-commit
 description: Analyze pending git changes and write a structured, conventional-commit plan to COMMITS.md so the user can review and stage commits in batches before committing. Use whenever the user wants to group working-tree or staged changes into sensible commits, draft commit messages for a dirty working tree, or prepare a commit plan from a diff.
 disable-model-invocation: true
 allowed-tools: Bash(git status) Bash(git diff *) Bash(git log *) Bash(git rev-parse *) Bash(git hash-object *) Read Write
@@ -66,7 +66,7 @@ Prepend this HTML comment to `COMMITS.md` (hidden from rendered previews, but gr
 
 ```
 <!--
-auto-commit-claude
+aj-auto-commit
 scanned-at: 2026-04-17T14:20:00Z
 head-sha:   8ab0c19
 tree-hash:  a1b2c3d4e5f6
@@ -82,7 +82,7 @@ After the header comment and the branch-suggestion line, write the commit groups
 
 ```
 <!--
-auto-commit-claude
+aj-auto-commit
 scanned-at: 2026-04-17T14:20:00Z
 head-sha:   8ab0c19
 tree-hash:  a1b2c3d4e5f6
