@@ -80,13 +80,15 @@ compared against a pure-Python FedAvg on the same inputs.
 |---|---|---|---|---|---|
 | tiny (~1K) | 5.84 µs | 5.19 µs | 77.2 µs | 383 µs | **65.6×** |
 | medium (~1M) | 4.75 ms | 4.64 ms | 85.4 ms | 438 ms | **92.2×** |
-| large (~10M) | 49.3 ms | 53.1 ms | 909 ms | *not measured* | — |
+| large (~10M) | 49.3 ms | 53.1 ms | 909 ms | 4.82 s | **97.8×** |
 
-Pure-Python FedAvg at the `large` tier is deliberately skipped — one
-iteration takes several minutes, which is itself the finding.
+Pure-Python FedAvg at the `large` tier costs ~4.8 s per round (5 rounds,
+σ ≈ 0.11 s). Slow enough to dominate the bench-suite runtime — full
+`tests/bench/` finishes in ~1m40s on this box — but worth measuring so
+the speedup column rests on numbers, not extrapolation.
 
-**FedAvg speedup lands around 65–90×** at both tiers where the
-comparison is tractable. `Orchestrator.run_round` takes a zero-copy
+**FedAvg speedup lands in the 65–98× range** across all three tiers,
+widening as parameter count grows. `Orchestrator.run_round` takes a zero-copy
 fast path when no attacks are registered: the PyO3 wrapper passes
 `&ClientUpdate` slices straight into the aggregation kernel, so no f32
 weight data is cloned between Python and aggregation. When attacks

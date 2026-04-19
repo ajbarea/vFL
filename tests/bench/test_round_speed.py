@@ -19,8 +19,9 @@ Run locally:
     uv run maturin develop --release
     make bench
 
-The `large` tier is deliberately skipped for the pure-Python bench — one
-iteration takes 2+ minutes, which is itself the claim (see `docs/benchmarks.md`).
+All three tiers are measured for both paths; the `large` Python cell is
+slow enough to dominate suite runtime but is run so the speedup column
+in `docs/benchmarks.md` rests on a measurement, not an extrapolation.
 """
 
 from __future__ import annotations
@@ -130,10 +131,7 @@ def test_rust_aggregate(benchmark: Any, tier: str, strategy: Strategy) -> None:
     benchmark(lambda: orch.run_round(updates))
 
 
-# Pure-Python aggregation at the `large` tier (10M params x 10 clients) takes
-# several minutes per iteration — which is the point, and what the docs page
-# calls out. Skipping here keeps the bench suite under a few minutes total.
-@pytest.mark.parametrize("tier", ["tiny", "medium"])
+@pytest.mark.parametrize("tier", list(TIERS.keys()))
 def test_python_aggregate(benchmark: Any, tier: str) -> None:
     updates = _build_python_updates(tier)
     layer_names = list(TIERS[tier].keys())
