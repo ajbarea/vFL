@@ -41,6 +41,23 @@ impl PyStrategy {
         PyStrategy(strategy::Strategy::FedMedian)
     }
 
+    /// Krum (Blanchard et al. 2017) — Byzantine-robust selection of a single
+    /// client. ``f`` is the tolerated number of Byzantine clients; requires
+    /// ``n >= 2*f + 3`` at aggregation time.
+    #[staticmethod]
+    fn krum(f: usize) -> Self {
+        PyStrategy(strategy::Strategy::Krum { f })
+    }
+
+    /// Multi-Krum (El Mhamdi et al. 2018) — averages the top-``m`` clients by
+    /// Krum score. ``m=None`` resolves to ``n - f`` at aggregation time.
+    /// Requires ``n >= 2*f + 3`` and ``1 <= m <= n - f``.
+    #[staticmethod]
+    #[pyo3(signature = (f, m=None))]
+    fn multi_krum(f: usize, m: Option<usize>) -> Self {
+        PyStrategy(strategy::Strategy::MultiKrum { f, m })
+    }
+
     fn __repr__(&self) -> String {
         format!("{:?}", self.0)
     }
@@ -112,6 +129,16 @@ impl PyRoundSummary {
     fn attack_results(&self) -> PyResult<String> {
         serde_json::to_string(&self.0.attack_results)
             .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Indices of clients that contributed to this round's aggregate.
+    ///
+    /// For non-robust aggregators (FedAvg / FedProx / FedMedian) this is
+    /// every participating client. Krum returns a single index; Multi-Krum
+    /// returns ``m`` indices. Always populated — never ``None``.
+    #[getter]
+    fn selected_client_ids(&self) -> Vec<usize> {
+        self.0.selected_client_ids.clone()
     }
 
     fn __repr__(&self) -> String {
@@ -271,6 +298,10 @@ impl PyOrchestrator {
 
 /// Aggregate a list of :class:`ClientUpdate` objects using a given strategy.
 ///
+/// This free function is a diagnostic / testing helper. It returns only the
+/// aggregated weights; for the full :class:`RoundSummary` (including
+/// ``selected_client_ids``), drive aggregation through :class:`Orchestrator`.
+///
 /// Args:
 ///     updates: List of :class:`ClientUpdate` objects.
 ///     strategy: Aggregation :class:`Strategy`.
@@ -283,7 +314,9 @@ fn aggregate(
     strategy: &PyStrategy,
 ) -> PyResult<HashMap<String, Vec<f32>>> {
     let refs: Vec<&strategy::ClientUpdate> = updates.iter().map(|u| &u.0).collect();
-    crate::strategy::aggregate(&refs, &strategy.0).map_err(PyRuntimeError::new_err)
+    crate::strategy::aggregate(&refs, &strategy.0)
+        .map(|agg| agg.weights)
+        .map_err(PyRuntimeError::new_err)
 }
 
 /// Apply Gaussian noise to a weight dict (in-place simulation).

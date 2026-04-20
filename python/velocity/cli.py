@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import typer
 
 from velocity import __version__
 from velocity.attacks import VALID_ATTACKS
 from velocity.server import VelocityServer
-from velocity.strategy import Strategy
+from velocity.strategy import ALL_STRATEGIES, Strategy, parse_strategy
 
 app = typer.Typer(
     name="velocity",
@@ -20,13 +21,50 @@ app = typer.Typer(
 )
 
 
-def _parse_strategy(value: str) -> Strategy:
-    normalized = value.strip().lower()
-    for strategy in Strategy:
-        if strategy.value.lower() == normalized:
-            return strategy
-    valid = ", ".join(s.value for s in Strategy)
-    raise typer.BadParameter(f"strategy must be one of: {valid}")
+def _parse_strategy_cli(value: str) -> Strategy:
+    """Parse a CLI-supplied strategy string, surfacing errors as BadParameter.
+
+    Accepts the bare class name for parameter-free strategies (``FedAvg``,
+    ``FedProx``, ``FedMedian``). Parameterised strategies (``Krum``,
+    ``MultiKrum``) need ``name:key=value,key=value`` form, e.g. ``Krum:f=2``
+    or ``MultiKrum:f=2,m=7``.
+    """
+    if ":" in value:
+        name, _, rest = value.partition(":")
+        params: dict[str, Any] = {}
+        for pair in rest.split(","):
+            if not pair:
+                continue
+            k, _, v = pair.partition("=")
+            if not k or not v:
+                raise typer.BadParameter(
+                    f"bad strategy param {pair!r} in {value!r}; expected key=value"
+                )
+            params[k.strip()] = _coerce_scalar(v.strip())
+        try:
+            return parse_strategy({"type": name, **params})
+        except (ValueError, TypeError) as e:
+            raise typer.BadParameter(str(e)) from e
+
+    try:
+        return parse_strategy(value)
+    except (ValueError, TypeError) as e:
+        raise typer.BadParameter(str(e)) from e
+
+
+def _coerce_scalar(raw: str) -> Any:
+    """Best-effort int/float/None/str coercion for CLI strategy params."""
+    if raw.lower() in {"none", "null"}:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+    try:
+        return float(raw)
+    except ValueError:
+        pass
+    return raw
 
 
 @app.command()
@@ -38,15 +76,19 @@ def version() -> None:
 @app.command()
 def strategies() -> None:
     """List available aggregation strategies."""
-    for strategy in Strategy:
-        typer.echo(strategy.value)
+    for cls in ALL_STRATEGIES:
+        typer.echo(cls.__name__)
 
 
 @app.command()
 def run(
     model_id: str = typer.Option(..., help="Hugging Face model identifier."),
     dataset: str = typer.Option(..., help="Dataset name or path (HF Hub or local)."),
-    strategy: str = typer.Option("FedAvg", help="FedAvg, FedProx, or FedMedian."),
+    strategy: str = typer.Option(
+        "FedAvg",
+        help="Strategy name ('FedAvg', 'FedMedian') or 'Name:key=value[,key=value]' "
+        "form (e.g. 'Krum:f=2', 'MultiKrum:f=2,m=7').",
+    ),
     storage: str = typer.Option("local://checkpoints", help="Storage URI."),
     min_clients: int = typer.Option(1, min=1, help="Minimum number of clients."),
     rounds: int = typer.Option(1, min=1, help="Number of FL rounds."),
@@ -55,7 +97,7 @@ def run(
     server = VelocityServer(
         model_id=model_id,
         dataset=dataset,
-        strategy=_parse_strategy(strategy),
+        strategy=_parse_strategy_cli(strategy),
         storage=storage,
     )
     summaries = server.run(min_clients=min_clients, rounds=rounds)
@@ -67,7 +109,11 @@ def simulate_attack(
     attack_type: str = typer.Argument(..., help="Attack name."),
     model_id: str = typer.Option("demo/model", help="Hugging Face model identifier."),
     dataset: str = typer.Option("demo/dataset", help="Dataset name or path (HF Hub or local)."),
-    strategy: str = typer.Option("FedAvg", help="FedAvg, FedProx, or FedMedian."),
+    strategy: str = typer.Option(
+        "FedAvg",
+        help="Strategy name ('FedAvg', 'FedMedian') or 'Name:key=value[,key=value]' "
+        "form (e.g. 'Krum:f=2', 'MultiKrum:f=2,m=7').",
+    ),
     min_clients: int = typer.Option(1, min=1, help="Minimum number of clients."),
     intensity: float = typer.Option(0.1, min=0.0, help="Attack intensity."),
     count: int = typer.Option(1, min=1, help="Sybil node count."),
@@ -79,7 +125,7 @@ def simulate_attack(
     server = VelocityServer(
         model_id=model_id,
         dataset=dataset,
-        strategy=_parse_strategy(strategy),
+        strategy=_parse_strategy_cli(strategy),
     )
     server.simulate_attack(
         attack_type,

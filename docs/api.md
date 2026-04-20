@@ -14,7 +14,7 @@ High-level orchestrator for federated learning experiments. Wraps the Rust-nativ
 class VelocityServer(
     model_id: str,
     dataset: str,
-    strategy: Strategy = Strategy.FedAvg,
+    strategy: Strategy | None = None,   # defaults to FedAvg()
     storage: str = "local://checkpoints",
     layer_shapes: dict[str, int] | None = None,
 )
@@ -24,7 +24,7 @@ class VelocityServer(
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `run` | `run(min_clients: int = 1, rounds: int = 1)` | `list[dict]` | Execute N rounds. Each dict has `round`, `num_clients`, `global_loss`, `attack_results`. |
+| `run` | `run(min_clients: int = 1, rounds: int = 1)` | `list[dict]` | Execute N rounds. Each dict has `round`, `num_clients`, `global_loss`, `attack_results`, `selected_client_ids`. |
 | `simulate_attack` | `simulate_attack(attack_type, *, intensity=0.1, count=1, fraction=0.1)` | `None` | Queue an attack for the next round. Can be called before or after `run()`. |
 
 #### Properties
@@ -40,16 +40,37 @@ See [Configuration](configuration.md) for field semantics and defaults.
 
 ### `velocity.Strategy`
 
-Enum of supported aggregation algorithms.
+Sum type over five frozen dataclasses — parameters live on the instance, not on a separate config surface.
 
 ```python
-class Strategy(str, Enum):
-    FedAvg    = "FedAvg"
-    FedProx   = "FedProx"
-    FedMedian = "FedMedian"
+Strategy = FedAvg | FedProx | FedMedian | Krum | MultiKrum
+
+@dataclass(frozen=True)
+class FedAvg: ...
+@dataclass(frozen=True)
+class FedProx:
+    mu: float = 0.01
+@dataclass(frozen=True)
+class FedMedian: ...
+@dataclass(frozen=True)
+class Krum:
+    f: int
+@dataclass(frozen=True)
+class MultiKrum:
+    f: int
+    m: int | None = None
 ```
 
-Inherits from `str`, so `Strategy.FedAvg == "FedAvg"` is `True` — you can pass either the enum member or the string literal anywhere a strategy is expected.
+All five are frozen, hashable, and compare by value. `ALL_STRATEGIES` is a tuple of the five classes (useful for CLI/`strategies` subcommand enumeration).
+
+```python
+from velocity import FedAvg, FedProx, Krum, MultiKrum, parse_strategy
+
+parse_strategy("FedAvg")                       == FedAvg()
+parse_strategy("FedProx")                      == FedProx()
+parse_strategy({"type": "Krum", "f": 2})       == Krum(f=2)
+parse_strategy({"type": "MultiKrum", "f": 1})  == MultiKrum(f=1, m=None)
+```
 
 See [Strategies](strategies.md) for semantics and decision guide.
 
@@ -96,8 +117,8 @@ Compiled by `maturin develop`. Imported lazily by `velocity.server`; absent in p
 |---|---|---|
 | `Orchestrator` | class | Owns per-experiment round state. Accepts `ClientUpdate[]`, returns `RoundSummary`. |
 | `ClientUpdate` | class | Rust-side update struct. `num_samples: int`, `weights: dict[str, list[float]]`. |
-| `RoundSummary` | class | Round result. `round`, `num_clients`, `global_loss`, `attack_results` (JSON). |
-| `Strategy` | class | Strategy factory. Constructors: `Strategy.fed_avg()`, `Strategy.fed_prox(mu)`, `Strategy.fed_median()`. |
+| `RoundSummary` | class | Round result. `round`, `num_clients`, `global_loss`, `attack_results` (JSON), `selected_client_ids`. |
+| `Strategy` | class | Strategy factory. Constructors: `Strategy.fed_avg()`, `Strategy.fed_prox(mu)`, `Strategy.fed_median()`, `Strategy.krum(f)`, `Strategy.multi_krum(f, m=None)`. |
 | `aggregate` | function | Standalone aggregation kernel — useful for testing. |
 | `apply_gaussian_noise` | function | Standalone noise kernel. |
 

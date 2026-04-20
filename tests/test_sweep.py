@@ -9,13 +9,12 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 from velocity.cli import app
-from velocity.strategy import Strategy
+from velocity.strategy import FedAvg, FedMedian, FedProx, Krum, MultiKrum, parse_strategy
 from velocity.sweep import (
     AttackSpec,
     RunResult,
     RunSpec,
     SweepResult,
-    _resolve_strategy,
     capture_manifest,
     load_config,
     render_comparison,
@@ -24,15 +23,33 @@ from velocity.sweep import (
 )
 
 
-def test_resolve_strategy_case_insensitive():
-    assert _resolve_strategy("fedavg") is Strategy.FedAvg
-    assert _resolve_strategy("FedMedian") is Strategy.FedMedian
-    assert _resolve_strategy("  FEDPROX  ") is Strategy.FedProx
+def test_parse_strategy_case_insensitive():
+    assert parse_strategy("fedavg") == FedAvg()
+    assert parse_strategy("FedMedian") == FedMedian()
+    assert parse_strategy("  FEDPROX  ") == FedProx()
 
 
-def test_resolve_strategy_unknown_raises():
+def test_parse_strategy_unknown_raises():
     with pytest.raises(ValueError, match="unknown strategy"):
-        _resolve_strategy("FedNope")
+        parse_strategy("FedNope")
+
+
+def test_parse_strategy_dict_form():
+    assert parse_strategy({"type": "Krum", "f": 2}) == Krum(f=2)
+    assert parse_strategy({"type": "MultiKrum", "f": 1, "m": 3}) == MultiKrum(f=1, m=3)
+    # m defaults to None when omitted
+    assert parse_strategy({"type": "MultiKrum", "f": 1}) == MultiKrum(f=1, m=None)
+
+
+def test_parse_strategy_passthrough_and_errors():
+    # Idempotent: a strategy instance round-trips.
+    assert parse_strategy(FedAvg()) == FedAvg()
+    # Missing required param surfaces a typed error.
+    with pytest.raises(ValueError, match="requires parameters"):
+        parse_strategy("Krum")
+    # Unknown parameter name.
+    with pytest.raises(ValueError, match="unknown parameter"):
+        parse_strategy({"type": "Krum", "f": 2, "bogus": 1})
 
 
 def test_specs_from_cli_includes_baseline_per_strategy():
@@ -104,7 +121,7 @@ intensity = 0.3
     specs = load_config(toml)
     assert len(specs) == 2
     assert specs[0].name == "a"
-    assert specs[0].strategy is Strategy.FedAvg
+    assert specs[0].strategy == FedAvg()
     assert specs[0].rounds == 2
     assert specs[1].attacks[0].type == "model_poisoning"
     assert specs[1].attacks[0].intensity == 0.3
@@ -127,7 +144,7 @@ def test_run_spec_rejects_unknown_fields():
     with pytest.raises(ValidationError):
         RunSpec(
             name="x",
-            strategy=Strategy.FedAvg,
+            strategy=FedAvg(),
             bogus_field="nope",  # type: ignore[call-arg]
         )
 
@@ -186,7 +203,7 @@ def test_render_comparison_shows_nan_when_loss_missing(tmp_path: Path):
 
 
 def test_render_comparison_picks_lowest_loss_winner():
-    def _run(name: str, strategy: Strategy, loss: float) -> RunResult:
+    def _run(name: str, strategy, loss: float) -> RunResult:
         return RunResult(
             spec=RunSpec(name=name, strategy=strategy, rounds=1, min_clients=1),
             rounds=[],
@@ -197,9 +214,9 @@ def test_render_comparison_picks_lowest_loss_winner():
 
     result = SweepResult(
         runs=[
-            _run("a", Strategy.FedAvg, 0.5),
-            _run("b", Strategy.FedMedian, 0.1),  # winner
-            _run("c", Strategy.FedProx, 0.3),
+            _run("a", FedAvg(), 0.5),
+            _run("b", FedMedian(), 0.1),  # winner
+            _run("c", FedProx(), 0.3),
         ],
         total_elapsed=2.0,
         serial_elapsed=6.0,

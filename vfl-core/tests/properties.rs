@@ -76,7 +76,7 @@ proptest! {
     fn fedavg_singleton_returns_input(update in arb_updates(1)) {
         let result = aggregate(&update, &Agg::FedAvg).unwrap();
         for (name, values) in &update[0].weights {
-            let got = &result[name];
+            let got = &result.weights[name];
             prop_assert_eq!(got.len(), values.len());
             for (g, w) in got.iter().zip(values.iter()) {
                 prop_assert!((g - w).abs() < 1e-5, "{}: {} != {}", name, g, w);
@@ -92,7 +92,7 @@ proptest! {
         let copies: Vec<ClientUpdate> = (0..n).map(|_| template[0].clone()).collect();
         let result = aggregate(&copies, &Agg::FedAvg).unwrap();
         for (name, values) in &template[0].weights {
-            let got = &result[name];
+            let got = &result.weights[name];
             for (g, w) in got.iter().zip(values.iter()) {
                 prop_assert!((g - w).abs() < 1e-4, "{}: {} != {}", name, g, w);
             }
@@ -103,7 +103,7 @@ proptest! {
     fn fedavg_matches_weighted_mean_reference(updates in arb_updates(3)) {
         let total: f64 = updates.iter().map(|u| u.num_samples as f64).sum();
         let result = aggregate(&updates, &Agg::FedAvg).unwrap();
-        for (name, layer) in &result {
+        for (name, layer) in &result.weights {
             for (i, got) in layer.iter().enumerate() {
                 let expected: f64 = updates
                     .iter()
@@ -123,11 +123,11 @@ proptest! {
     fn fedavg_preserves_layer_shape(updates in arb_updates(3)) {
         let result = aggregate(&updates, &Agg::FedAvg).unwrap();
         prop_assert_eq!(
-            result.keys().collect::<std::collections::BTreeSet<_>>(),
+            result.weights.keys().collect::<std::collections::BTreeSet<_>>(),
             updates[0].weights.keys().collect::<std::collections::BTreeSet<_>>()
         );
         for (name, values) in &updates[0].weights {
-            prop_assert_eq!(result[name].len(), values.len());
+            prop_assert_eq!(result.weights[name].len(), values.len());
         }
     }
 }
@@ -143,7 +143,7 @@ proptest! {
     fn fedmedian_singleton_returns_input(update in arb_updates(1)) {
         let result = aggregate(&update, &Agg::FedMedian).unwrap();
         for (name, values) in &update[0].weights {
-            let got = &result[name];
+            let got = &result.weights[name];
             for (g, w) in got.iter().zip(values.iter()) {
                 prop_assert!((g - w).abs() < 1e-5);
             }
@@ -158,7 +158,7 @@ proptest! {
         let copies: Vec<ClientUpdate> = (0..n).map(|_| template[0].clone()).collect();
         let result = aggregate(&copies, &Agg::FedMedian).unwrap();
         for (name, values) in &template[0].weights {
-            let got = &result[name];
+            let got = &result.weights[name];
             for (g, w) in got.iter().zip(values.iter()) {
                 prop_assert!((g - w).abs() < 1e-5);
             }
@@ -183,7 +183,7 @@ proptest! {
 
         let result = aggregate(&round, &Agg::FedMedian).unwrap();
         for (name, values) in &base.weights {
-            for (g, w) in result[name].iter().zip(values.iter()) {
+            for (g, w) in result.weights[name].iter().zip(values.iter()) {
                 prop_assert!(
                     (g - w).abs() < 1e-4,
                     "median moved under 1 outlier: {} vs {}",
@@ -206,8 +206,8 @@ proptest! {
     fn fedprox_matches_fedavg_output(updates in arb_updates(3)) {
         let fedavg = aggregate(&updates, &Agg::FedAvg).unwrap();
         let fedprox = aggregate(&updates, &Agg::FedProx { mu: 0.01 }).unwrap();
-        for name in fedavg.keys() {
-            for (a, p) in fedavg[name].iter().zip(fedprox[name].iter()) {
+        for name in fedavg.weights.keys() {
+            for (a, p) in fedavg.weights[name].iter().zip(fedprox.weights[name].iter()) {
                 prop_assert!((a - p).abs() < 1e-6);
             }
         }

@@ -14,6 +14,10 @@ class Strategy:
     def fed_prox(mu: float) -> Strategy: ...
     @staticmethod
     def fed_median() -> Strategy: ...
+    @staticmethod
+    def krum(f: int) -> Strategy: ...
+    @staticmethod
+    def multi_krum(f: int, m: int | None = ...) -> Strategy: ...
 
 class ClientUpdate:
     num_samples: int
@@ -25,6 +29,7 @@ class RoundSummary:
     num_clients: int
     global_loss: float
     attack_results: str  # JSON-encoded list
+    selected_client_ids: list[int]
 
 class Orchestrator:
     def __init__(

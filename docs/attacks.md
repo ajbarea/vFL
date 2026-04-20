@@ -14,12 +14,12 @@ Byzantine-style attack simulations baked into the Rust core. Use them to stress-
 ## Register via Python
 
 ```python
-from velocity import VelocityServer, Strategy
+from velocity import VelocityServer, FedMedian
 
 server = VelocityServer(
     model_id="demo/model",
     dataset="demo/dataset",
-    strategy=Strategy.FedMedian,  # robust strategy — pairs well with attacks
+    strategy=FedMedian(),  # robust strategy — pairs well with attacks
 )
 
 server.simulate_attack("model_poisoning", intensity=0.3)
@@ -70,7 +70,7 @@ for s in summaries:
 A minimal template for comparing strategies under attack:
 
 ```python
-from velocity import VelocityServer, Strategy
+from velocity import VelocityServer, FedAvg, FedMedian, Krum, Strategy
 
 def run_under_attack(strategy: Strategy) -> list[float]:
     server = VelocityServer(
@@ -81,8 +81,9 @@ def run_under_attack(strategy: Strategy) -> list[float]:
     server.simulate_attack("model_poisoning", intensity=0.3)
     return [s["global_loss"] for s in server.run(min_clients=10, rounds=10)]
 
-fedavg_losses    = run_under_attack(Strategy.FedAvg)
-fedmedian_losses = run_under_attack(Strategy.FedMedian)
+fedavg_losses    = run_under_attack(FedAvg())
+fedmedian_losses = run_under_attack(FedMedian())
+krum_losses      = run_under_attack(Krum(f=2))   # tolerates up to 2 Byzantine clients
 ```
 
 See [Strategies](strategies.md) for when each aggregation algorithm is the right pairing.

@@ -19,12 +19,17 @@ pub struct ExperimentConfig {
 /// `global_loss` is whatever the caller computed on a held-out set after
 /// aggregation. The Rust core does not see the model or data, so it cannot
 /// invent a meaningful loss — `NaN` means "caller didn't report one."
+///
+/// `selected_client_ids` records which clients contributed to the aggregate.
+/// Non-robust aggregators populate `0..num_clients` (all clients); Krum
+/// returns exactly one index; Multi-Krum returns `m` indices.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RoundSummary {
     pub round: usize,
     pub num_clients: usize,
     pub global_loss: f64,
     pub attack_results: Vec<AttackResult>,
+    pub selected_client_ids: Vec<usize>,
 }
 
 /// The central FL orchestrator.
@@ -173,14 +178,15 @@ impl Orchestrator {
         reported_loss: Option<f64>,
     ) -> Result<RoundSummary, String> {
         let round = self.history.len() + 1;
-        let new_weights = aggregate(client_updates, &self.config.strategy)?;
-        self.global_weights = new_weights;
+        let agg = aggregate(client_updates, &self.config.strategy)?;
+        self.global_weights = agg.weights;
 
         let summary = RoundSummary {
             round,
             num_clients: client_updates.len(),
             global_loss: reported_loss.unwrap_or(f64::NAN),
             attack_results,
+            selected_client_ids: agg.selected_client_ids,
         };
         self.history.push(summary.clone());
         Ok(summary)
@@ -278,6 +284,31 @@ mod tests {
             .run(|_, _| vec![make_update(1.0), make_update(1.0)])
             .unwrap();
         assert_eq!(summaries.len(), 3);
+    }
+
+    #[test]
+    fn round_summary_records_all_client_ids_for_fedavg() {
+        let mut orch = Orchestrator::new(make_config(1), &make_layer_shapes());
+        let summary = orch
+            .run_round(
+                vec![make_update(1.0), make_update(2.0), make_update(3.0)],
+                None,
+            )
+            .unwrap();
+        assert_eq!(summary.selected_client_ids, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn round_summary_records_krum_winner_only() {
+        let mut config = make_config(1);
+        config.strategy = Strategy::Krum { f: 0 };
+        let mut orch = Orchestrator::new(config, &make_layer_shapes());
+        // n=3 satisfies Krum's n >= 2f+3 = 3. Index 2 is a far outlier, so
+        // Krum should pick one of the clustered [1.0, 1.0] clients.
+        let updates = vec![make_update(1.0), make_update(1.0), make_update(100.0)];
+        let summary = orch.run_round(updates, None).unwrap();
+        assert_eq!(summary.selected_client_ids.len(), 1);
+        assert_ne!(summary.selected_client_ids[0], 2);
     }
 
     #[test]

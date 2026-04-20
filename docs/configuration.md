@@ -8,7 +8,7 @@ Every knob on `VelocityServer` — what it means, what it defaults to, and when 
 VelocityServer(
     model_id: str,
     dataset: str,
-    strategy: Strategy = Strategy.FedAvg,
+    strategy: Strategy | None = None,   # defaults to FedAvg()
     storage: str = "local://checkpoints",
     layer_shapes: dict[str, int] | None = None,
 )
@@ -18,7 +18,7 @@ VelocityServer(
 |---|---|---|---|
 | `model_id` | `str` | *required* | Hugging Face model identifier (e.g. `meta-llama/Llama-3-8B`) or a local path. |
 | `dataset` | `str` | *required* | Dataset name or local path. Any HF Hub slug works. |
-| `strategy` | [`Strategy`](strategies.md) | `Strategy.FedAvg` | Aggregation algorithm. |
+| `strategy` | [`Strategy`](strategies.md) | `FedAvg()` | Aggregation algorithm (a `FedAvg`, `FedProx`, `FedMedian`, `Krum`, or `MultiKrum` instance). |
 | `storage` | `str` | `"local://checkpoints"` | Checkpoint storage URI. Supports `local://`, `hf-xet://`, and any fsspec-style scheme your environment can resolve. |
 | `layer_shapes` | `dict[str, int] \| None` | small demo net | Maps layer name → parameter count. Must match the model being trained for real experiments. |
 
@@ -75,13 +75,15 @@ server.simulate_attack(
 
 ## Strategy parameters
 
-Some strategies carry their own tuning knobs. In the current Python surface these are fixed; the Rust constructors accept custom values.
+Each strategy is a frozen dataclass; parameters live on the instance. Pass the instance itself to `VelocityServer(strategy=…)`.
 
-| Strategy | Parameter | Value in Python surface | Description |
+| Strategy | Parameter | Default | Description |
 |---|---|---|---|
 | `FedAvg` | *(none)* | — | Weighted mean by `num_samples`. |
-| `FedProx` | `mu` | `0.01` (fixed) | Proximal-term coefficient. Higher = more conservative updates, better on heterogeneous clients. Override via `velocity._core.Strategy.fed_prox(mu)`. |
+| `FedProx` | `mu: float` | `0.01` | Proximal-term coefficient. Higher = more conservative updates, better on heterogeneous clients. |
 | `FedMedian` | *(none)* | — | Coordinate-wise median. |
+| `Krum` | `f: int` | *required* | Byzantine-tolerance bound. Round must have `n ≥ 2f + 3` clients. |
+| `MultiKrum` | `f: int`, `m: int \| None` | `m = n − f` when `None` | Average the `m` lowest-scoring updates. `1 ≤ m ≤ n − f`. |
 
 See [Strategies](strategies.md) for when to use each.
 

@@ -96,3 +96,19 @@ fn fed_median(bencher: Bencher, tier: &str) {
     let updates = make_updates(tier);
     bencher.bench_local(|| aggregate(black_box(&updates), &Strategy::FedMedian).unwrap());
 }
+
+// f = 1 keeps Krum within `n >= 2f + 3 = 5` at 10 clients and matches the
+// conservative "one attacker tolerated" scenario in docs/strategies.md.
+#[divan::bench(args = TIERS)]
+fn krum(bencher: Bencher, tier: &str) {
+    let updates = make_updates(tier);
+    bencher.bench_local(|| aggregate(black_box(&updates), &Strategy::Krum { f: 1 }).unwrap());
+}
+
+#[divan::bench(args = TIERS)]
+fn multi_krum(bencher: Bencher, tier: &str) {
+    let updates = make_updates(tier);
+    bencher.bench_local(|| {
+        aggregate(black_box(&updates), &Strategy::MultiKrum { f: 1, m: None }).unwrap()
+    });
+}

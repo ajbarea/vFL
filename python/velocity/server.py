@@ -7,7 +7,15 @@ import logging
 from typing import Any
 
 from velocity.attacks import VALID_ATTACKS
-from velocity.strategy import Strategy
+from velocity.strategy import (
+    FedAvg,
+    FedMedian,
+    FedProx,
+    Krum,
+    MultiKrum,
+    Strategy,
+    strategy_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,13 +82,13 @@ class VelocityServer:
         self,
         model_id: str,
         dataset: str,
-        strategy: Strategy = Strategy.FedAvg,
+        strategy: Strategy | None = None,
         storage: str = "local://checkpoints",
         layer_shapes: dict[str, int] | None = None,
     ) -> None:
         self.model_id = model_id
         self.dataset = dataset
-        self.strategy = strategy
+        self.strategy: Strategy = strategy if strategy is not None else FedAvg()
         self.storage = storage
         self.layer_shapes: dict[str, int] = layer_shapes or dict(_DEFAULT_LAYER_SHAPES)
 
@@ -98,7 +106,7 @@ class VelocityServer:
             "VelocityServer initialised — model=%s dataset=%s strategy=%s",
             model_id,
             dataset,
-            strategy.value,
+            strategy_name(self.strategy),
         )
 
     # ------------------------------------------------------------------
@@ -235,21 +243,23 @@ class VelocityServer:
         )
 
     def _map_strategy(self) -> Any:
-        """Convert the Python :class:`Strategy` enum to a Rust Strategy object.
+        """Convert a Python :class:`Strategy` dataclass to a Rust Strategy object.
 
-        Registry is the single place to add a new strategy on the Python side —
-        Rust still owns the kernel, Python just maps the enum value to the
-        PyO3 factory.
+        Dispatches on type so parameters (``FedProx.mu``, ``Krum.f``,
+        ``MultiKrum.m``) flow through without being re-typed in a registry.
         """
-        factories = {
-            Strategy.FedAvg: _rust.Strategy.fed_avg,
-            Strategy.FedProx: lambda: _rust.Strategy.fed_prox(0.01),
-            Strategy.FedMedian: _rust.Strategy.fed_median,
-        }
-        factory = factories.get(self.strategy)
-        if factory is None:
-            raise ValueError(f"Unsupported strategy: {self.strategy}")
-        return factory()
+        s = self.strategy
+        if isinstance(s, FedAvg):
+            return _rust.Strategy.fed_avg()
+        if isinstance(s, FedProx):
+            return _rust.Strategy.fed_prox(s.mu)
+        if isinstance(s, FedMedian):
+            return _rust.Strategy.fed_median()
+        if isinstance(s, Krum):
+            return _rust.Strategy.krum(s.f)
+        if isinstance(s, MultiKrum):
+            return _rust.Strategy.multi_krum(s.f, s.m)
+        raise ValueError(f"Unsupported strategy: {s!r}")
 
     def _run_single_round(self) -> dict[str, Any]:
         """Generate mock client updates and execute one round."""
@@ -275,6 +285,7 @@ class VelocityServer:
                 "num_clients": summary_obj.num_clients,
                 "global_loss": summary_obj.global_loss,
                 "attack_results": attack_results,
+                "selected_client_ids": summary_obj.selected_client_ids,
             }
         else:
             return self._orchestrator.run_round(num_clients)
@@ -343,6 +354,7 @@ class _PurePythonOrchestrator:
             "num_clients": num_clients,
             "global_loss": global_loss,
             "attack_results": attack_results,
+            "selected_client_ids": list(range(num_clients)),
         }
         self._history.append(summary)
         return summary
