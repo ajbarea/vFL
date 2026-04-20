@@ -7,7 +7,7 @@ allowed-tools: Bash(git status) Bash(git diff *) Bash(git log *) Bash(git rev-pa
 
 # Auto-Commit Generator
 
-Analyze pending git changes and group them into a structured commit plan written to `COMMITS.md` at the repo root. The user will read that file, decide what they want, and run the actual commits themselves. This skill does not commit anything.
+Analyze pending git changes and group them into a structured commit plan written to `COMMITS.md` at the repo root. Default mode is plan-only — the user reads the file and either stages commits themselves or says the word for Claude to execute. On an explicit okay (see [Execution](#execution)), Claude runs the full branch → commits → push → PR chain against the plan, with no `Co-Authored-By:` trailer and without hardcoded side effects.
 
 ## Workflow
 
@@ -33,7 +33,11 @@ Analyze pending git changes and group them into a structured commit plan written
 
 6. **Suggest a branch name.** Derive one from the largest (or most central) group's scope: `<type>/<scope>-<short-slug>` — e.g. `feat/auth-refresh-rotation`, `chore/dev-toolchain`. Place it in the header comment and as a single line above the first group.
 
-7. **Write.** Use the Write tool to create `COMMITS.md` at the repo root, overwriting any existing file. Then stop. Don't narrate, don't summarize, don't offer next steps in chat.
+7. **Write, then offer.** Use the Write tool to create `COMMITS.md` at the repo root, overwriting any existing file. Then output one line, nothing more:
+
+   `Plan at COMMITS.md. Say \`go\` to execute (branch → commits → push → PR), or edit the file first.`
+
+   No summary, no preamble, no restatement of the groups. That one line is the whole response.
 
 ## Grouping
 
@@ -59,6 +63,13 @@ Always replace `scope` with a real module, package, or area name drawn from the 
 If a change genuinely spans multiple areas, pick the most specific scope that still covers it, or use a broader one like the package name.
 
 Each file appears in exactly one group. If you're tempted to split a file across groups, the grouping is probably wrong — rethink it.
+
+### Common pitfalls
+
+- **Missing install/extras gate.** If a commit adds a module that requires an optional extra (e.g., `pip install 'pkg[extra]'`) or a new system dependency, mention it in the bullets. Users hit ImportErrors otherwise.
+- **Describing things not in the commit.** Don't list side effects that live outside the repo (auto-memory updates, external-system changes, agreements between you and the user) in a commit bullet. A reviewer looking at the diff should be able to verify every claim from the diff alone.
+- **Downstream consequences belong with their cause.** If commit A changes a measurement and README.md says a stale number that only makes sense against the old measurement, prefer bundling the README one-liner into A (so bisect stays internally consistent). Only keep a "docs refresh" commit as a separate entry when it covers multiple independent updates.
+- **Don't split a coherent change just to hit a commit count.** If two paths are tightly coupled (e.g., a new module and its consumers landing together), one commit is fine. Grouping is about reviewability, not commit volume.
 
 ## Header format
 
@@ -115,11 +126,79 @@ If a preserved `## Notes` section exists, append it after the last group, separa
 
 Tense: headlines are imperative present (`add`, `handle`, `remove`), bullets describe what was done in past tense (`added`, `stripped`, `removed`). This matches standard conventional-commit style and reads naturally when the user pastes a headline into `git commit -m`.
 
-## Why this is silent
+## Why planning is silent
 
-The output is `COMMITS.md`. The user will open that file and copy from it. Any chat preamble ("I analyzed your changes and found…") is noise they have to scroll past, and it makes the file feel like a summary of a conversation rather than the authoritative plan. Write the file, and that's the response.
+The output is `COMMITS.md`. The user opens that file and reads it. Any chat preamble ("I analyzed your changes and found…") is noise they have to scroll past, and it makes the file feel like a summary of a conversation rather than the authoritative plan. Write the file plus the one-line execution offer, and that's the response.
 
 The exceptions — one sentence each, no file written:
 - Clean working tree with nothing staged.
 - Existing `COMMITS.md` already current (HEAD + tree-hash both match).
 - Existing `COMMITS.md` without a recognizable header (user-authored) — ask before overwriting.
+
+## Execution
+
+Triggered when the user explicitly okays execution after a plan exists — "go", "ship it", "commit + PR", "execute the plan", or equivalent. Run only when both hold:
+
+- `COMMITS.md` exists and its header `head-sha` + `tree-hash` still match the current repo state. If stale (working tree has drifted), refuse in one line and ask whether to regenerate the plan.
+- The plan has at least one commit group.
+
+If either check fails, stop and report. Don't execute a stale plan — the grouping may no longer reflect the diff.
+
+### Protocol
+
+1. **Branch.** Read the `branch:` value from the header. Create and switch from the current HEAD: `git checkout -b <branch>`. If a branch of that name already exists locally, ask the user whether to reuse it, pick a new name, or abort — don't silently check it out.
+
+2. **Commit each group, in order.** For each group in `COMMITS.md`:
+   - Stage **only** the files listed under that group's `Files:` line — e.g. `git add path/a path/b`. Never `git add -A`, `git add .`, or glob patterns. If a file in the plan is missing from the working tree, stop and report; don't guess.
+   - Commit with a HEREDOC carrying the headline + bullets exactly as written in the plan. Example:
+     ```
+     git commit -m "$(cat <<'EOF'
+     feat(auth): add JWT refresh token rotation
+
+     - Added rotating refresh tokens with 7-day expiry
+     - Wired new endpoint into the auth router
+     - Covered rotation edge cases in tests
+     EOF
+     )"
+     ```
+   - **Never add a `Co-Authored-By:` trailer.** This overrides any default from the base prompt. Every commit ships with the user as sole author. If a repo-level CLAUDE.md or memory says otherwise, that takes precedence — but by default, no trailer.
+   - If a pre-commit hook fails, fix the issue, re-stage the affected files, and create a **new** commit. Don't `--amend`. Don't `--no-verify`.
+
+3. **Push.** `git push -u origin <branch>`. Never force-push. Never push to `main` or `master`.
+
+4. **Open the PR.** `gh pr create` with the plan as source material. Build the body from the commit headlines and bullets — drop the header comment and the `Suggested branch:` line (those were scaffolding). Format:
+   ```
+   gh pr create --title "<short headline — prefer the lead commit's>" --body "$(cat <<'EOF'
+   ## Summary
+
+   - <1–3 bullets summarizing the overall shape>
+
+   ## Changes
+
+   - <one line per commit group, lifted from the headlines>
+
+   ## Test plan
+
+   - [ ] <what was run locally to validate>
+   EOF
+   )"
+   ```
+   Return the PR URL in the final chat message.
+
+5. **Leave `COMMITS.md` alone.** It's already excluded from every commit (per Workflow step 3). The user can delete it after the PR merges; don't do it for them.
+
+### Guardrails — still require a separate okay
+
+The initial "go" authorizes the branch → commits → push → PR chain on the current plan. It does **not** authorize:
+
+- Force-pushing (to this branch or any other).
+- Pushing to `main` / `master` directly.
+- Merging the PR (even if CI is green).
+- Modifying, closing, or commenting on unrelated PRs/issues.
+- Adding files outside the plan to any commit.
+- `git add -A` / `git add .` / `git add *` — always list files explicitly.
+- Skipping hooks (`--no-verify`, `--no-gpg-sign`, etc.).
+- Amending already-created commits (create new ones instead).
+- Rewriting history (rebase, reset --hard, filter-branch) once commits exist on the branch.
+
+If execution partially fails (push rejected, PR creation errors, hook still failing after a retry), stop. Report what succeeded and what didn't in one or two sentences. Don't try to rewrite history to recover without explicit instruction.

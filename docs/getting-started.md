@@ -49,12 +49,16 @@ FedMedian
 
 ## 3. Your first round — Python
 
+The quickest path is the high-level `VelocityServer`, which runs a
+simulated round loop — useful for sanity-checking the install and the
+attack surface before wiring up real data:
+
 ```python
 from velocity import VelocityServer, Strategy
 
 server = VelocityServer(
     model_id="demo/model",
-    dataset="demo/dataset",
+    dataset="demo/dataset",  # record-keeping string; real loading is below
     strategy=Strategy.FedAvg,
 )
 
@@ -64,6 +68,31 @@ summaries = server.run(min_clients=2, rounds=3)
 for s in summaries:
     print(f"round {s['round']}: loss={s['global_loss']:.4f} clients={s['num_clients']}")
 ```
+
+For a **real** federated round with a real model and real data, install
+the `[hf,torch]` extras and use `velocity.datasets.load_federated` to
+pull a Hugging Face dataset, partition it across clients, and hand back
+ready-to-train `DataLoader`s:
+
+```python
+from velocity.datasets import load_federated
+
+split = load_federated(
+    "ylecun/mnist",
+    num_clients=5,
+    partition="shard",
+    shards_per_client=2,  # McMahan-style non-IID — each client sees ~2 classes
+    batch_size=64,
+    seed=0,
+)
+print([c.num_samples for c in split.clients])  # per-client sample counts
+# split.test_loader is the shared held-out loader; split.num_classes is 10.
+```
+
+End-to-end worked examples (train loop, Rust aggregator wiring,
+convergence assertions) live at `examples/mnist_fedavg.py` and
+`examples/cifar10_fedavg_dirichlet.py`; the observed trajectories are
+snapshotted in `docs/convergence.md`.
 
 ## 4. Your first round — CLI
 

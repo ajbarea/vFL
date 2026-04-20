@@ -1,22 +1,21 @@
-"""Real FedAvg convergence demo on MNIST.
+"""Real FedAvg convergence demo on CIFAR-10 under heavy Dirichlet non-IID.
 
-Five clients, each holding a non-IID slice of MNIST (≈two digit classes
-per client, McMahan-style shard partition). Ten rounds of Federated
-Averaging through the Rust orchestrator. Every round, the server evaluates
-the aggregated global model on the held-out test set and reports real loss
-+ real accuracy.
+Ten clients, each holding a Dirichlet(alpha=0.1) slice of CIFAR-10 — heavy
+label skew, most clients see only a few classes. A small CNN (~550K params)
+trains for 10 rounds of Federated Averaging through the Rust orchestrator.
 
-This is the proof that VelocityFL does federated learning, not just the
-math inside one round of it.
+This complements ``mnist_fedavg.py``: MNIST proves the pipeline on a
+sharded-partition, small-input task; CIFAR-10 proves it on a Dirichlet
+partition, non-trivial-input-shape task.
 
 Run::
 
     uv pip install 'velocity-fl[hf,torch]'
     uv run maturin develop --release
-    uv run python examples/mnist_fedavg.py
+    uv run python examples/cifar10_fedavg_dirichlet.py
 
-Expect test accuracy to climb from ~10% (random) to >85% over 10 rounds.
-First run downloads MNIST via ``datasets.load_dataset`` into the HF cache.
+First run downloads CIFAR-10 via ``datasets.load_dataset`` into the HF
+cache (~160 MB).
 """
 
 from __future__ import annotations
@@ -37,33 +36,44 @@ from velocity.training import (
     state_dict_to_layers,
 )
 
-NUM_CLIENTS = 5
-SHARDS_PER_CLIENT = 2  # 5 * 2 = 10 shards, one per digit class
+NUM_CLIENTS = 10
+ALPHA = 0.1  # Dirichlet concentration — low = heavy label skew
 ROUNDS = 10
-LOCAL_EPOCHS = 1
+LOCAL_EPOCHS = 2
 BATCH_SIZE = 64
 LR = 0.01
 SEED = 0
 
-# Nightly convergence floor: if this run doesn't clear it, something regressed.
-# 0.85 leaves slack above the sub-convergent ~0.80 we saw in early iterations
-# and below the ~0.92 we've observed on passing runs.
-MIN_FINAL_ACC = 0.85
+# Nightly convergence floor. Observed 0.631 on a clean run (snapshot in
+# docs/convergence.md); 0.55 leaves ~8 percentage points of slack for
+# seed-to-seed variance and legitimate future perturbations from
+# aggregator/partition changes. Drop below and something regressed.
+MIN_FINAL_ACC = 0.55
 
-MNIST_TRANSFORM = transforms.Compose(
-    [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+# Canonical CIFAR-10 channel statistics (from the torchvision reference),
+# kept in sync with what HF's cifar10 repository expects downstream models
+# to use.
+CIFAR_MEAN = (0.4914, 0.4822, 0.4465)
+CIFAR_STD = (0.2470, 0.2435, 0.2616)
+
+CIFAR_TRANSFORM = transforms.Compose(
+    [transforms.ToTensor(), transforms.Normalize(CIFAR_MEAN, CIFAR_STD)]
 )
 
 
 def make_model() -> nn.Module:
-    """Small MLP — 784 -> 128 -> 64 -> 10. ~109K params."""
+    """Two conv blocks + two FC layers. ~550K params, CPU-friendly for 10 rounds."""
     return nn.Sequential(
+        nn.Conv2d(3, 32, kernel_size=3, padding=1),
+        nn.ReLU(),
+        nn.MaxPool2d(2),  # 32x32 -> 16x16
+        nn.Conv2d(32, 64, kernel_size=3, padding=1),
+        nn.ReLU(),
+        nn.MaxPool2d(2),  # 16x16 -> 8x8
         nn.Flatten(),
-        nn.Linear(28 * 28, 128),
+        nn.Linear(64 * 8 * 8, 128),
         nn.ReLU(),
-        nn.Linear(128, 64),
-        nn.ReLU(),
-        nn.Linear(64, 10),
+        nn.Linear(128, 10),
     )
 
 
@@ -71,21 +81,22 @@ def main() -> None:
     torch.manual_seed(SEED)
 
     split = load_federated(
-        "ylecun/mnist",
+        "cifar10",
         num_clients=NUM_CLIENTS,
-        partition="shard",
-        shards_per_client=SHARDS_PER_CLIENT,
+        partition="dirichlet",
+        alpha=ALPHA,
+        min_partition_size=50,  # ensure each client has a usable batch set
         batch_size=BATCH_SIZE,
         seed=SEED,
-        transform=MNIST_TRANSFORM,
+        transform=CIFAR_TRANSFORM,
     )
 
     template = make_model()
     template_state = template.state_dict()
 
     orch = _core.Orchestrator(
-        model_id="mnist-mlp-128-64",
-        dataset="ylecun/mnist",
+        model_id="cifar10-cnn-32-64-128",
+        dataset="cifar10",
         strategy=_core.Strategy.fed_avg(),
         storage="memory://",
         min_clients=NUM_CLIENTS,
@@ -94,7 +105,10 @@ def main() -> None:
     )
     orch.set_global_weights(state_dict_to_layers(template_state))
 
-    print(f"VelocityFL MNIST FedAvg demo — {NUM_CLIENTS} clients, non-IID, {ROUNDS} rounds")
+    print(
+        f"VelocityFL CIFAR-10 Dirichlet(alpha={ALPHA}) FedAvg demo — "
+        f"{NUM_CLIENTS} clients, {ROUNDS} rounds"
+    )
     print(f"Per-client sample counts: {[c.num_samples for c in split.clients]}")
     print(f"{'round':>5} | {'pre-loss':>9} | {'post-loss':>9} | {'post-acc':>8} | {'sec':>6}")
     print("-" * 56)

@@ -49,12 +49,15 @@ uv run maturin develop
 
 ### 2) Run a minimal Python example
 
+The fastest path is the built-in simulator — useful for checking the
+install and the attack surface before wiring up real data:
+
 ```python
 from velocity import VelocityServer, Strategy
 
 server = VelocityServer(
     model_id="demo/model",
-    dataset="demo/dataset",
+    dataset="demo/dataset",  # record-keeping string; real loading is below
     strategy=Strategy.FedAvg,
 )
 
@@ -62,6 +65,32 @@ server.simulate_attack("gaussian_noise", intensity=0.05)
 summaries = server.run(min_clients=1, rounds=1)
 print(summaries)
 ```
+
+For a **real** federated round on a real model + dataset, install the
+`[hf,torch]` extras and use `load_federated`:
+
+```bash
+uv pip install 'velocity-fl[hf,torch]'
+```
+
+```python
+from velocity.datasets import load_federated
+
+split = load_federated(
+    "ylecun/mnist",
+    num_clients=5,
+    partition="shard",
+    shards_per_client=2,  # McMahan-style non-IID — ~2 digit classes per client
+    batch_size=64,
+    seed=0,
+)
+print([c.num_samples for c in split.clients])
+```
+
+End-to-end runs live at [`examples/mnist_fedavg.py`](examples/mnist_fedavg.py)
+(shard partition) and [`examples/cifar10_fedavg_dirichlet.py`](examples/cifar10_fedavg_dirichlet.py)
+(Dirichlet-α partition). Observed convergence is snapshotted in
+[`docs/convergence.md`](docs/convergence.md).
 
 ### 3) Use the CLI
 
@@ -147,7 +176,7 @@ per aggregation; pure Python becomes impractical to measure.
 
 End-to-end, this matters less than the raw ratio suggests: on the
 [MNIST FedAvg demo](examples/mnist_fedavg.py) (5 clients, ~109K params),
-aggregation is ~10 ms of an ~11-second round — the rest is torch local
+aggregation is ~10 ms of a ~1.3-second round — the rest is torch local
 training. The aggregation-speedup lever compounds at robust-aggregator
 (Krum, Bulyan), high-client-count, and small-update scales, not at
 small-model simulation.

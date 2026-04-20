@@ -28,7 +28,9 @@ dependencies = [
 hf = [
     "transformers>=4.40",
     "peft>=0.10",
-    "datasets>=2.0",
+    # datasets 2.x pulls ancient pyarrow/pandas APIs that break against
+    # modern transitive pins. 3.x is the current schema baseline.
+    "datasets>=3.0,<4.0",
     "safetensors>=0.4",
 ]
 torch = [
@@ -113,13 +115,15 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
 include = ["python"]
 
 [tool.ty.analysis]
-# Torch is an optional extra (`velocity-fl[torch]`); baseline `uv sync` prunes it.
-# tomli is a conditional dep (python_version < '3.11'); not installed on newer runners.
-# When these ARE installed, ty resolves real types.
+# Torch + Hugging Face `datasets` are optional extras (`velocity-fl[torch,hf]`);
+# baseline `uv sync` prunes them. tomli is a conditional dep (python_version < '3.11');
+# not installed on newer runners. When these ARE installed, ty resolves real types.
 allowed-unresolved-imports = [
     "torch",
     "torch.**",
     "torchvision",
     "torchvision.**",
+    "datasets",
+    "datasets.**",
     "tomli",
 ]
