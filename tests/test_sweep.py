@@ -15,6 +15,9 @@ from velocity.sweep import (
     RunResult,
     RunSpec,
     SweepResult,
+    _coerce_sweep_scalar,
+    _parse_sweep_strategy,
+    _run_one,
     capture_manifest,
     load_config,
     render_comparison,
@@ -316,3 +319,94 @@ def test_cli_sweep_rejects_unknown_attack(tmp_path: Path):
         ],
     )
     assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# _parse_sweep_strategy / _coerce_sweep_scalar — sweep-CLI shorthand internals
+# ---------------------------------------------------------------------------
+
+
+def test_parse_sweep_strategy_bare_name():
+    assert _parse_sweep_strategy("FedAvg") == FedAvg()
+    assert _parse_sweep_strategy("FedMedian") == FedMedian()
+
+
+def test_parse_sweep_strategy_colon_form():
+    assert _parse_sweep_strategy("Krum:f=2") == Krum(f=2)
+    assert _parse_sweep_strategy("MultiKrum:f=1,m=3") == MultiKrum(f=1, m=3)
+    # Trailing comma / empty pair is tolerated
+    assert _parse_sweep_strategy("Krum:f=2,") == Krum(f=2)
+
+
+def test_parse_sweep_strategy_colon_form_with_none():
+    # `m=none` should coerce to None, making MultiKrum's default-at-aggregation-time path explicit
+    assert _parse_sweep_strategy("MultiKrum:f=1,m=none") == MultiKrum(f=1, m=None)
+
+
+def test_coerce_sweep_scalar_none_forms():
+    assert _coerce_sweep_scalar("none") is None
+    assert _coerce_sweep_scalar("NULL") is None
+
+
+def test_coerce_sweep_scalar_int_float_string():
+    assert _coerce_sweep_scalar("42") == 42
+    assert isinstance(_coerce_sweep_scalar("42"), int)
+    assert _coerce_sweep_scalar("3.14") == 3.14
+    assert _coerce_sweep_scalar("hello") == "hello"
+
+
+# ---------------------------------------------------------------------------
+# Strategy serialisation round-trip — exercises _serialize_strategy
+# ---------------------------------------------------------------------------
+
+
+def test_run_spec_strategy_serialises_with_fields():
+    # model_dump invokes _serialize_strategy; the result must feed straight
+    # back into model_validate (same shape parse_strategy accepts).
+    spec = RunSpec(name="k", strategy=Krum(f=2), rounds=1, min_clients=1)
+    dumped = spec.model_dump(mode="json")
+    assert dumped["strategy"] == {"type": "Krum", "f": 2}
+    # Round-trip
+    rehydrated = RunSpec.model_validate(dumped)
+    assert rehydrated.strategy == Krum(f=2)
+
+
+def test_run_spec_multikrum_serialises_all_fields():
+    spec = RunSpec(name="mk", strategy=MultiKrum(f=1, m=3), rounds=1, min_clients=1)
+    dumped = spec.model_dump(mode="json")
+    assert dumped["strategy"] == {"type": "MultiKrum", "f": 1, "m": 3}
+
+
+def test_run_spec_fedavg_serialises_with_no_params():
+    # Parameter-free dataclasses still emit {"type": ...} cleanly.
+    spec = RunSpec(name="b", strategy=FedAvg(), rounds=1, min_clients=1)
+    assert spec.model_dump(mode="json")["strategy"] == {"type": "FedAvg"}
+
+
+# ---------------------------------------------------------------------------
+# _run_one — worker body, called directly (not via subprocess) for coverage
+# ---------------------------------------------------------------------------
+
+
+def test_run_one_happy_path_returns_serialisable_dict():
+    spec = RunSpec(name="direct", strategy=FedAvg(), rounds=1, min_clients=1)
+    result = _run_one(spec.model_dump(mode="json"))
+    assert result["spec"]["name"] == "direct"
+    assert isinstance(result["rounds"], list)
+    assert result["error"] is None
+    assert "final_loss" in result and "mean_loss" in result
+    # Re-validates cleanly — round-trip through the pydantic schema.
+    rehydrated = RunResult.model_validate(result)
+    assert rehydrated.succeeded
+
+
+def test_run_one_captures_aggregation_error_as_string():
+    # Krum(f=2) requires n >= 7; with min_clients=1 the Rust kernel raises,
+    # and _run_one must catch it and surface an error string rather than crash.
+    spec = RunSpec(name="err", strategy=Krum(f=2), rounds=1, min_clients=1)
+    result = _run_one(spec.model_dump(mode="json"))
+    assert result["error"] is not None
+    assert isinstance(result["error"], str)
+    # final_loss / mean_loss fall back to NaN when no rounds succeeded
+    assert result["final_loss"] != result["final_loss"]  # NaN != NaN
+    assert result["mean_loss"] != result["mean_loss"]
