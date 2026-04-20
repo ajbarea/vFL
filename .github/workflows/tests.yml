@@ -35,7 +35,12 @@ jobs:
           enable-cache: true
 
       - name: Install project + dev dependencies
-        run: uv sync
+        # Install the `hf` and `torch` extras so `test_datasets.py` and
+        # `test_convergence.py` (both `pytest.importorskip`-gated on
+        # `torch` / `datasets`) collect and run. Without them the HF
+        # loader + convergence suites skip at collection and their code
+        # paths go uncovered in the Codecov upload.
+        run: uv sync --extra hf --extra torch
 
       - name: Ruff lint
         run: uv run ruff check .
