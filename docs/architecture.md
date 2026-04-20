@@ -58,7 +58,7 @@ vFL/
 ├── vfl-core/               # Rust crate
 │   ├── src/
 │   │   ├── lib.rs          # PyO3 module definition
-│   │   ├── strategy.rs     # FedAvg / FedProx / FedMedian
+│   │   ├── strategy.rs     # FedAvg / FedProx / FedMedian / Krum / MultiKrum
 │   │   ├── orchestrator.rs # round state + attack dispatch
 │   │   └── security.rs     # attack types + simulations (model_poisoning, sybil_nodes, gaussian_noise, label_flipping)
 │   └── Cargo.toml

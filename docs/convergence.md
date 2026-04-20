@@ -169,9 +169,10 @@ real end-to-end. The following surfaces still contain stand-ins:
 - **Storage** — `ExperimentConfig.storage` is a URI string with no
   resolver behind it.
 - **Strategies** — `FedAvg`, `FedProx` (server-side identical to
-  FedAvg by construction; the proximal term is client-side), and
-  `FedMedian` are real. Other published strategies (Krum, Trimmed
-  Mean, Bulyan, FedYogi, FedAdam) are not implemented.
+  FedAvg by construction; the proximal term is client-side),
+  `FedMedian`, `Krum`, and `MultiKrum` are real. Other published
+  strategies (Trimmed Mean, Bulyan, FedYogi, FedAdam) are not
+  implemented.
 - **Orchestrator `dataset` field** — on the Rust side,
   `ExperimentConfig.dataset` remains a record-keeping string. The real
   loading entry point is `velocity.datasets.load_federated`, which is
