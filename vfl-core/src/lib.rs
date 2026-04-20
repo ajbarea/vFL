@@ -41,6 +41,15 @@ impl PyStrategy {
         PyStrategy(strategy::Strategy::FedMedian)
     }
 
+    /// Coordinate-wise trimmed mean (Yin et al. 2018) — drops the ``k``
+    /// smallest and ``k`` largest values per coordinate, then uniform-means
+    /// the rest. Tolerates up to ``k`` Byzantine clients per coordinate;
+    /// requires ``2*k < n`` at aggregation time.
+    #[staticmethod]
+    fn trimmed_mean(k: usize) -> Self {
+        PyStrategy(strategy::Strategy::TrimmedMean { k })
+    }
+
     /// Krum (Blanchard et al. 2017) — Byzantine-robust selection of a single
     /// client. ``f`` is the tolerated number of Byzantine clients; requires
     /// ``n >= 2*f + 3`` at aggregation time.

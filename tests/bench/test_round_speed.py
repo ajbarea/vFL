@@ -30,7 +30,7 @@ import random
 from typing import Any
 
 import pytest
-from velocity import FedAvg, FedMedian, FedProx, Krum, MultiKrum, Strategy
+from velocity import FedAvg, FedMedian, FedProx, Krum, MultiKrum, Strategy, TrimmedMean
 from velocity.server import _RUST_AVAILABLE, _rust
 from velocity.strategy import strategy_name
 
@@ -100,6 +100,8 @@ def _make_rust_strategy(strategy: Strategy) -> Any:
         return _rust.Strategy.fed_prox(strategy.mu)
     if isinstance(strategy, FedMedian):
         return _rust.Strategy.fed_median()
+    if isinstance(strategy, TrimmedMean):
+        return _rust.Strategy.trimmed_mean(strategy.k)
     if isinstance(strategy, Krum):
         return _rust.Strategy.krum(strategy.f)
     if isinstance(strategy, MultiKrum):
@@ -119,7 +121,7 @@ def _make_rust_orchestrator(tier: str, strategy: Strategy) -> Any:
     )
 
 
-STRATEGIES = [FedAvg(), FedProx(), FedMedian(), Krum(f=1), MultiKrum(f=1)]
+STRATEGIES = [FedAvg(), FedProx(), FedMedian(), TrimmedMean(k=1), Krum(f=1), MultiKrum(f=1)]
 
 
 @pytest.mark.skipif(

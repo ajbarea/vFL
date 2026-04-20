@@ -48,6 +48,20 @@ class FedMedian:
 
 
 @dataclass(frozen=True)
+class TrimmedMean:
+    """Coordinate-wise trimmed mean (Yin et al. 2018, arXiv:1803.01498).
+
+    Drops the ``k`` smallest and ``k`` largest values per coordinate, then
+    uniform-means the remaining ``n - 2k``. Tolerates up to ``k`` Byzantine
+    clients per coordinate; requires ``2*k < n`` at aggregation time.
+    ``TrimmedMean(k=0)`` is a uniform mean (not sample-weighted — distinct
+    from :class:`FedAvg`).
+    """
+
+    k: int
+
+
+@dataclass(frozen=True)
 class Krum:
     """Byzantine-robust selection (Blanchard et al. 2017, arXiv:1703.02757).
 
@@ -71,11 +85,18 @@ class MultiKrum:
     m: int | None = None
 
 
-Strategy = Union[FedAvg, FedProx, FedMedian, Krum, MultiKrum]
+Strategy = Union[FedAvg, FedProx, FedMedian, TrimmedMean, Krum, MultiKrum]
 """Union of every aggregation strategy — use in type hints and isinstance checks."""
 
 
-ALL_STRATEGIES: tuple[type[Strategy], ...] = (FedAvg, FedProx, FedMedian, Krum, MultiKrum)
+ALL_STRATEGIES: tuple[type[Strategy], ...] = (
+    FedAvg,
+    FedProx,
+    FedMedian,
+    TrimmedMean,
+    Krum,
+    MultiKrum,
+)
 """Every concrete strategy class, in stable display order."""
 
 _NAME_TO_CLASS: dict[str, type[Strategy]] = {cls.__name__: cls for cls in ALL_STRATEGIES}

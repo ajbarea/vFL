@@ -129,5 +129,5 @@ Run `make` with no arguments for the full target list.
 - [CLI Reference](cli.md) — every flag, every command.
 - [Architecture](architecture.md) — how Rust, PyO3, and Python fit together.
 - [Configuration](configuration.md) — every field on `VelocityServer`.
-- [Strategies](strategies.md) — when to reach for FedAvg, FedProx, FedMedian, Krum, or MultiKrum.
+- [Strategies](strategies.md) — when to reach for FedAvg, FedProx, FedMedian, TrimmedMean, Krum, or MultiKrum.
 - [Attacks](attacks.md) — adversarial simulations baked into the core.

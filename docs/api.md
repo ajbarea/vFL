@@ -40,10 +40,10 @@ See [Configuration](configuration.md) for field semantics and defaults.
 
 ### `velocity.Strategy`
 
-Sum type over five frozen dataclasses — parameters live on the instance, not on a separate config surface.
+Sum type over six frozen dataclasses — parameters live on the instance, not on a separate config surface.
 
 ```python
-Strategy = FedAvg | FedProx | FedMedian | Krum | MultiKrum
+Strategy = FedAvg | FedProx | FedMedian | TrimmedMean | Krum | MultiKrum
 
 @dataclass(frozen=True)
 class FedAvg: ...
@@ -53,6 +53,9 @@ class FedProx:
 @dataclass(frozen=True)
 class FedMedian: ...
 @dataclass(frozen=True)
+class TrimmedMean:
+    k: int
+@dataclass(frozen=True)
 class Krum:
     f: int
 @dataclass(frozen=True)
@@ -61,7 +64,7 @@ class MultiKrum:
     m: int | None = None
 ```
 
-All five are frozen, hashable, and compare by value. `ALL_STRATEGIES` is a tuple of the five classes (useful for CLI/`strategies` subcommand enumeration).
+All six are frozen, hashable, and compare by value. `ALL_STRATEGIES` is a tuple of the six classes (useful for CLI/`strategies` subcommand enumeration).
 
 ```python
 from velocity import FedAvg, FedProx, Krum, MultiKrum, parse_strategy

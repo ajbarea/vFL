@@ -10,6 +10,7 @@ from velocity.strategy import (
     FedProx,
     Krum,
     MultiKrum,
+    TrimmedMean,
     parse_strategy,
     strategy_name,
 )
@@ -17,7 +18,7 @@ from velocity.strategy import (
 
 def test_all_strategies_tuple_covers_sum_type():
     names = {cls.__name__ for cls in ALL_STRATEGIES}
-    assert names == {"FedAvg", "FedProx", "FedMedian", "Krum", "MultiKrum"}
+    assert names == {"FedAvg", "FedProx", "FedMedian", "TrimmedMean", "Krum", "MultiKrum"}
 
 
 def test_parameter_free_strategies_equal_and_hashable():
@@ -34,6 +35,8 @@ def test_parameterised_strategies_compare_by_field():
     assert Krum(f=2) != Krum(f=3)
     assert MultiKrum(f=2) == MultiKrum(f=2, m=None)
     assert MultiKrum(f=2, m=5) != MultiKrum(f=2, m=6)
+    assert TrimmedMean(k=1) == TrimmedMean(k=1)
+    assert TrimmedMean(k=1) != TrimmedMean(k=2)
 
 
 def test_frozen_prevents_mutation():
@@ -63,11 +66,19 @@ def test_parse_strategy_dict_forms():
     assert parse_strategy({"type": "Krum", "f": 2}) == Krum(f=2)
     assert parse_strategy({"type": "MultiKrum", "f": 1, "m": 3}) == MultiKrum(f=1, m=3)
     assert parse_strategy({"type": "MultiKrum", "f": 1}) == MultiKrum(f=1, m=None)
+    assert parse_strategy({"type": "TrimmedMean", "k": 2}) == TrimmedMean(k=2)
 
 
 def test_parse_strategy_passthrough():
     # Instances round-trip unchanged.
-    for s in (FedAvg(), FedProx(mu=0.05), FedMedian(), Krum(f=1), MultiKrum(f=1, m=2)):
+    for s in (
+        FedAvg(),
+        FedProx(mu=0.05),
+        FedMedian(),
+        TrimmedMean(k=1),
+        Krum(f=1),
+        MultiKrum(f=1, m=2),
+    ):
         assert parse_strategy(s) == s
 
 
@@ -76,5 +87,7 @@ def test_parse_strategy_errors():
         parse_strategy("FedNope")
     with pytest.raises(ValueError, match="requires parameters"):
         parse_strategy("Krum")  # f is required
+    with pytest.raises(ValueError, match="requires parameters"):
+        parse_strategy("TrimmedMean")  # k is required
     with pytest.raises(ValueError, match="unknown parameter"):
         parse_strategy({"type": "Krum", "f": 2, "bogus": 1})

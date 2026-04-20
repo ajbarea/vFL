@@ -11,6 +11,7 @@ from velocity.strategy import (
     Krum,
     MultiKrum,
     Strategy,
+    TrimmedMean,
     parse_strategy,
 )
 
@@ -21,6 +22,7 @@ __all__ = [
     "Krum",
     "MultiKrum",
     "Strategy",
+    "TrimmedMean",
     "VelocityServer",
     "parse_strategy",
 ]

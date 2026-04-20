@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-from strategy_reference import krum_reference, multi_krum_reference
+from strategy_reference import krum_reference, multi_krum_reference, trimmed_mean_reference
 from velocity import _core
 
 # ---------------------------------------------------------------------------
@@ -273,6 +273,70 @@ def test_krum_rejects_insufficient_clients() -> None:
     updates = [_core.ClientUpdate(num_samples=10, weights={"w": [float(i)] * 3}) for i in range(4)]
     with pytest.raises(Exception):  # noqa: B017 — PyO3 boundary
         _core.aggregate(updates, _core.Strategy.krum(1))
+
+
+# ---------------------------------------------------------------------------
+# Trimmed Mean — parity with a NumPy oracle
+# ---------------------------------------------------------------------------
+
+
+@given(updates=_client_updates(n_clients=5))
+@_SETTINGS
+def test_trimmed_mean_matches_numpy_oracle(updates: list[_core.ClientUpdate]) -> None:
+    """Rust TrimmedMean(k=1) over 5 clients must match NumPy's per-coord trim."""
+    rust_result = _core.aggregate(updates, _core.Strategy.trimmed_mean(1))
+    want_weights = trimmed_mean_reference(_as_dicts(updates), k=1)
+    _assert_weights_close(rust_result, want_weights)
+
+
+@given(updates=_client_updates(n_clients=7))
+@_SETTINGS
+def test_trimmed_mean_k2_matches_numpy_oracle(updates: list[_core.ClientUpdate]) -> None:
+    """Higher k still parity-checks: k=2 over 7 clients keeps the middle 3."""
+    rust_result = _core.aggregate(updates, _core.Strategy.trimmed_mean(2))
+    want_weights = trimmed_mean_reference(_as_dicts(updates), k=2)
+    _assert_weights_close(rust_result, want_weights)
+
+
+@given(updates=_client_updates(n_clients=4))
+@_SETTINGS
+def test_trimmed_mean_k0_is_uniform_mean(updates: list[_core.ClientUpdate]) -> None:
+    """TrimmedMean(k=0) is a uniform (not sample-weighted) mean over all clients.
+
+    This is the analogue of the Multi-Krum sample-weighting test: TrimmedMean
+    must never weight by num_samples, otherwise a Byzantine client could
+    amplify itself by inflating its sample count.
+    """
+    n = len(updates)
+    result = _core.aggregate(updates, _core.Strategy.trimmed_mean(0))
+    for name in updates[0].weights:
+        for i in range(len(updates[0].weights[name])):
+            expected = sum(u.weights[name][i] for u in updates) / n
+            assert _close(result[name][i], expected, tol=1e-3)
+
+
+def test_trimmed_mean_resists_k_outliers() -> None:
+    """4 honest clients near U, 1 attacker at U+1000 ⇒ TrimmedMean(k=1) ≈ U.
+
+    Byzantine-robustness pin: with the symmetric trim absorbing the single
+    outlier on the upper side, no honest coordinate is moved.
+    """
+    base = {"w": [1.0, 2.0, 3.0, 4.0, 5.0]}
+    honest = [_core.ClientUpdate(num_samples=10, weights=dict(base)) for _ in range(4)]
+    attacker = _core.ClientUpdate(
+        num_samples=10,
+        weights={"w": [v + 1000.0 for v in base["w"]]},
+    )
+    result = _core.aggregate([*honest, attacker], _core.Strategy.trimmed_mean(1))
+    for got, want in zip(result["w"], base["w"]):
+        assert _close(got, want), f"trimmed mean moved under 1 outlier: {got} vs {want}"
+
+
+def test_trimmed_mean_rejects_too_large_k() -> None:
+    """TrimmedMean requires 2*k < n; below that the kernel must refuse."""
+    updates = [_core.ClientUpdate(num_samples=10, weights={"w": [float(i)]}) for i in range(3)]
+    with pytest.raises(Exception):  # noqa: B017 — PyO3 boundary
+        _core.aggregate(updates, _core.Strategy.trimmed_mean(2))
 
 
 def test_multi_krum_m_equals_n_minus_f_is_uniform_mean() -> None:
