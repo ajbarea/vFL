@@ -107,26 +107,31 @@ Multi-Krum is strictly a generalisation (Krum == Multi-Krum with
 - **Buffer-protocol / numpy return path.** Independent ROADMAP item;
   slotted separately because it touches every kernel's return type.
 
-## Open questions
+## Resolved design decisions
 
-1. **Strategy parameters through the Python enum.** The current
-   `velocity.strategy.Strategy` is a plain `str` enum — `FedProx`'s
-   `mu` is handled inside `VelocityServer.run` by reading a
-   separate config field, which is ugly but working. Options:
-   (a) keep the string enum, extend the server's params dict;
-   (b) switch to a dataclass-style enum that carries parameters
-   (`Strategy.Krum(f=2)`); (c) expose two parallel APIs (string for
-   the CLI, parametric for Python). Lean: (b), but that's an API
-   break for `FedProx` callers — so if we go (b), migrate `FedProx`
-   in the same PR and note it in the CHANGELOG.
-2. **Rust return shape for Multi-Krum.** Average of top-`m` selected
-   clients is the canonical form (El Mhamdi et al.). Do we also
-   expose the *selected client indices* for auditability? Lean: yes,
-   as a separate getter on `RoundSummary` (`selected_client_ids:
-   list[int]`). Small surface, big debugging value.
-3. **Default `m` for Multi-Krum.** Literature often uses
-   `m = n - f`. Make that the default when `m` is omitted? Lean: yes,
-   with the rationale documented in the docstring.
+(Ported from "Open questions" after reviewing Flower 2026's Krum/MultiKrum API.)
+
+1. **Strategy API: sum type via frozen dataclasses.** Replace the
+   `str` enum with `Strategy = FedAvg | FedProx | Krum | MultiKrum`,
+   each a `@dataclass(frozen=True)` carrying its own parameters.
+   `VelocityServer` isinstance-dispatches. Typer CLI keeps a string
+   surface via a translator (`--strategy krum --f 2` →
+   `Krum(f=2)`). `FedProx.mu` migrates from the separate server
+   config field into the dataclass in this PR; CHANGELOG notes the
+   break. Matches Flower 2026's strategy-object pattern
+   (`flwr.server.strategy.Krum(num_malicious_nodes=..., num_nodes_to_select=...)`).
+2. **Expose selected client indices.** `RoundSummary` gains
+   `selected_client_ids: list[int]` — populated by Multi-Krum with
+   the top-`m` indices, populated by Krum with the single selected
+   index, and by the non-robust aggregators with all participating
+   client ids (preserves the invariant that the field is always
+   populated, never `None`). Small surface, load-bearing for the
+   ROADMAP'd robustness leaderboard.
+3. **Default `m = n - f` for Multi-Krum.** When `m=None` the kernel
+   resolves `m = n - f` at aggregation time — El Mhamdi's
+   "largest non-Byzantine group" interpretation. Docstring documents
+   the math and the fallback (`m` must satisfy `1 <= m <= n - f`;
+   explicit `m` outside that range raises).
 
 ## Definition of done
 
