@@ -1,17 +1,17 @@
-"""NumPy reference implementations of Krum and Multi-Krum.
+"""NumPy reference implementations of Krum, Multi-Krum, and Trimmed Mean.
 
 These are independent oracles we compare the Rust kernel against. Kept in
 `tests/` so they never ship in the installed package — they're test fixtures,
 not a second implementation to maintain.
 
 Algorithms match:
-  Krum       — Blanchard et al. 2017, "Machine Learning with Adversaries"
-  Multi-Krum — El Mhamdi et al. 2018, "The Hidden Vulnerability of Distributed
-               Learning in Byzantium"
+  Krum         — Blanchard et al. 2017, "Machine Learning with Adversaries"
+  Multi-Krum   — El Mhamdi et al. 2018, "The Hidden Vulnerability of Distributed
+                 Learning in Byzantium"
+  Trimmed Mean — Yin et al. 2018, "Byzantine-Robust Distributed Learning"
+                 (arXiv:1803.01498)
 
-Both require `n >= 2*f + 3` where n is the number of updates and f is the
-assumed Byzantine count. Both flatten updates into a single vector for the
-distance computation, then return the original per-layer shapes.
+Krum / Multi-Krum require `n >= 2*f + 3`. Trimmed Mean requires `2*k < n`.
 """
 
 from __future__ import annotations
@@ -116,3 +116,33 @@ def multi_krum_reference(
         )
         weights[name] = stacked.mean(axis=0).astype(np.float32)
     return weights, selected.tolist()
+
+
+def trimmed_mean_reference(
+    updates: Sequence[ClientWeights],
+    k: int,
+) -> dict[str, np.ndarray]:
+    """NumPy coordinate-wise trimmed mean.
+
+    For each coordinate, sorts the n client values, drops the k smallest and
+    k largest, and returns the uniform mean of the remaining n-2k. Per-layer
+    output dtype matches the Rust kernel (f32).
+
+    Raises ValueError if 2*k >= n.
+    """
+    n = len(updates)
+    if 2 * k >= n:
+        raise ValueError(f"TrimmedMean requires 2*k < n; got k={k}, n={n}")
+
+    order = list(updates[0]["weights"].keys())
+    weights: dict[str, np.ndarray] = {}
+    for name in order:
+        # Shape (n, len(layer)) — sort along the client axis, then slice the
+        # middle band. f64 accumulator mirrors the Rust kernel.
+        stacked = np.stack(
+            [np.asarray(updates[i]["weights"][name], dtype=np.float64) for i in range(n)]
+        )
+        stacked.sort(axis=0)
+        kept = stacked[k : n - k] if k > 0 else stacked
+        weights[name] = kept.mean(axis=0).astype(np.float32)
+    return weights

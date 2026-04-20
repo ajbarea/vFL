@@ -76,6 +76,7 @@ jobs:
           flags: unit
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
+          disable_search: true
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
@@ -84,3 +85,4 @@ jobs:
           files: junit.xml
           report_type: test_results
           token: ${{ secrets.CODECOV_TOKEN }}
+          disable_search: true

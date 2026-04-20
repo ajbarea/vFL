@@ -10,6 +10,13 @@ pub enum Strategy {
         mu: f64,
     },
     FedMedian,
+    /// Coordinate-wise trimmed mean (Yin et al. 2018, arXiv:1803.01498) —
+    /// drop the `k` smallest and `k` largest values per coordinate, then
+    /// uniform-mean the remaining `n - 2k`. Tolerates up to `k` Byzantine
+    /// clients per coordinate. Requires `2*k < n`.
+    TrimmedMean {
+        k: usize,
+    },
     /// Krum (Blanchard et al. 2017, arXiv:1703.02757) — picks the single
     /// client whose sum of `n - f - 2` smallest squared distances to others
     /// is minimal. Byzantine-robust when `n >= 2*f + 3`.
@@ -68,6 +75,10 @@ pub fn aggregate<U: Borrow<ClientUpdate>>(
         }),
         Strategy::FedMedian => Ok(Aggregation {
             weights: fed_median(updates)?,
+            selected_client_ids: all_ids(),
+        }),
+        Strategy::TrimmedMean { k } => Ok(Aggregation {
+            weights: trimmed_mean(updates, *k)?,
             selected_client_ids: all_ids(),
         }),
         Strategy::Krum { f } => krum_select(updates, *f, Some(1)),
@@ -179,6 +190,85 @@ fn fed_median<U: Borrow<ClientUpdate>>(updates: &[U]) -> Result<HashMap<String, 
             } else {
                 median_hi
             };
+        }
+
+        global.insert(name.clone(), agg);
+    }
+
+    Ok(global)
+}
+
+/// Coordinate-wise trimmed mean across client updates.
+///
+/// For each coordinate, drops the `k` smallest and `k` largest values across
+/// clients, then uniform-means the remaining `n - 2k`. Two `select_nth_unstable_by`
+/// calls partition the scratch buffer in O(C) average per coordinate — same
+/// inner-loop shape as `fed_median`, no median-of-evens branch.
+///
+/// Uniform weighting (not sample-weighted) — matches Yin et al. 2018 and our
+/// Multi-Krum convention. Returns an error if `2*k >= n` (no elements left).
+fn trimmed_mean<U: Borrow<ClientUpdate>>(
+    updates: &[U],
+    k: usize,
+) -> Result<HashMap<String, Vec<f32>>, String> {
+    let n = updates.len();
+    if 2 * k >= n {
+        return Err(format!("TrimmedMean requires 2*k < n; got k={k}, n={n}"));
+    }
+
+    let first = updates[0].borrow();
+    let mut global: HashMap<String, Vec<f32>> = HashMap::with_capacity(first.weights.len());
+
+    let mut scratch: Vec<f32> = Vec::with_capacity(n);
+    let kept = n - 2 * k;
+    let inv_kept = 1.0f64 / kept as f64;
+    let cmp = |a: &f32, b: &f32| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal);
+
+    for (name, first_vec) in first.weights.iter() {
+        let len = first_vec.len();
+
+        let layer_slices: Vec<&[f32]> = updates
+            .iter()
+            .map(|u| {
+                u.borrow()
+                    .weights
+                    .get(name)
+                    .map(|v| v.as_slice())
+                    .ok_or_else(|| format!("Client update missing layer '{}'", name))
+            })
+            .collect::<Result<_, _>>()?;
+        for s in &layer_slices {
+            if s.len() != len {
+                return Err(format!(
+                    "Layer '{}' size mismatch: expected {}, got {}",
+                    name,
+                    len,
+                    s.len()
+                ));
+            }
+        }
+
+        let mut agg = vec![0.0f32; len];
+
+        for (i, slot) in agg.iter_mut().enumerate() {
+            scratch.clear();
+            scratch.extend(layer_slices.iter().map(|s| s[i]));
+
+            // k = 0 short-circuit: no partitioning, just sum the whole slice.
+            // The two select_nth calls below would be no-ops at k=0 but the
+            // inner-window slicing (k..n-k) needs k > 0 to land cleanly.
+            let sum: f64 = if k == 0 {
+                scratch.iter().map(|&v| v as f64).sum()
+            } else {
+                // First select isolates the k smallest into scratch[..k].
+                scratch.select_nth_unstable_by(k, cmp);
+                // Second select operates on the remaining n-k elements and
+                // isolates the k largest into scratch[n-k..]. The middle band
+                // scratch[k..n-k] is the kept set (unordered, but sum-stable).
+                scratch[k..].select_nth_unstable_by(kept - 1, cmp);
+                scratch[k..n - k].iter().map(|&v| v as f64).sum()
+            };
+            *slot = (sum * inv_kept) as f32;
         }
 
         global.insert(name.clone(), agg);
@@ -510,6 +600,87 @@ mod tests {
         )
         .is_err());
         assert!(aggregate(&[u0, u1, u2], &Strategy::MultiKrum { f: 0, m: Some(0) },).is_err());
+    }
+
+    // ----- Trimmed Mean -----
+
+    #[test]
+    fn trimmed_mean_k1_drops_extremes() {
+        // n=5, k=1 → drop min and max per coord, mean the middle 3.
+        // coord 0: sorted [1,2,3,4,100] → trim → mean(2,3,4) = 3.0
+        // coord 1: sorted [-50,5,6,7,8] → trim → mean(5,6,7) = 6.0
+        let u0 = make_update(1, &[("w", vec![3.0, 6.0])]);
+        let u1 = make_update(1, &[("w", vec![1.0, 8.0])]);
+        let u2 = make_update(1, &[("w", vec![100.0, -50.0])]);
+        let u3 = make_update(1, &[("w", vec![2.0, 7.0])]);
+        let u4 = make_update(1, &[("w", vec![4.0, 5.0])]);
+        let result = aggregate(&[u0, u1, u2, u3, u4], &Strategy::TrimmedMean { k: 1 }).unwrap();
+        let w = &result.weights["w"];
+        assert!((w[0] - 3.0).abs() < 1e-5, "got {}", w[0]);
+        assert!((w[1] - 6.0).abs() < 1e-5, "got {}", w[1]);
+        assert_eq!(result.selected_client_ids, vec![0, 1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn trimmed_mean_k0_equals_uniform_mean() {
+        // k=0 reduces to a uniform (not sample-weighted) mean. Distinct from
+        // FedAvg, which weights by num_samples — that's why u0 having 100
+        // samples is irrelevant here.
+        let u0 = make_update(100, &[("w", vec![0.0])]);
+        let u1 = make_update(1, &[("w", vec![1.0])]);
+        let u2 = make_update(1, &[("w", vec![2.0])]);
+        let result = aggregate(&[u0, u1, u2], &Strategy::TrimmedMean { k: 0 }).unwrap();
+        // Uniform mean: (0 + 1 + 2) / 3 = 1.0
+        assert!((result.weights["w"][0] - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn trimmed_mean_max_k_reduces_to_single_middle_element() {
+        // n=3, k=1 → kept=1, the middle order statistic per coord.
+        // Same shape as median for odd n.
+        let u0 = make_update(1, &[("w", vec![1.0, 30.0])]);
+        let u1 = make_update(1, &[("w", vec![2.0, 10.0])]);
+        let u2 = make_update(1, &[("w", vec![3.0, 20.0])]);
+        let result = aggregate(&[u0, u1, u2], &Strategy::TrimmedMean { k: 1 }).unwrap();
+        let w = &result.weights["w"];
+        assert!((w[0] - 2.0).abs() < 1e-5, "got {}", w[0]);
+        assert!((w[1] - 20.0).abs() < 1e-5, "got {}", w[1]);
+    }
+
+    #[test]
+    fn trimmed_mean_excludes_byzantine_outlier() {
+        // 4 honest clients near 1.0, 1 outlier at 1e6. With k=1, the outlier
+        // is trimmed and the result lands near 1.0.
+        let mut clients: Vec<ClientUpdate> = [1.0f32, 1.1, 0.9, 1.05]
+            .iter()
+            .map(|&v| make_update(1, &[("w", vec![v])]))
+            .collect();
+        clients.push(make_update(1, &[("w", vec![1.0e6])]));
+        let result = aggregate(&clients, &Strategy::TrimmedMean { k: 1 }).unwrap();
+        assert!(
+            result.weights["w"][0].abs() < 5.0,
+            "Byzantine value leaked through trim: got {}",
+            result.weights["w"][0]
+        );
+    }
+
+    #[test]
+    fn trimmed_mean_rejects_too_large_k() {
+        // n=3, k=2 → 2*k=4 >= n. Should error.
+        let u0 = make_update(1, &[("w", vec![1.0])]);
+        let u1 = make_update(1, &[("w", vec![2.0])]);
+        let u2 = make_update(1, &[("w", vec![3.0])]);
+        let result = aggregate(&[u0, u1, u2], &Strategy::TrimmedMean { k: 2 });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn trimmed_mean_missing_layer_returns_error() {
+        let u0 = make_update(1, &[("a", vec![1.0])]);
+        let u1 = make_update(1, &[("b", vec![1.0])]);
+        let u2 = make_update(1, &[("a", vec![1.0])]);
+        let result = aggregate(&[u0, u1, u2], &Strategy::TrimmedMean { k: 0 });
+        assert!(result.is_err());
     }
 
     #[test]

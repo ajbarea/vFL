@@ -18,7 +18,7 @@ VelocityServer(
 |---|---|---|---|
 | `model_id` | `str` | *required* | Hugging Face model identifier (e.g. `meta-llama/Llama-3-8B`) or a local path. |
 | `dataset` | `str` | *required* | Dataset name or local path. Any HF Hub slug works. |
-| `strategy` | [`Strategy`](strategies.md) | `FedAvg()` | Aggregation algorithm (a `FedAvg`, `FedProx`, `FedMedian`, `Krum`, or `MultiKrum` instance). |
+| `strategy` | [`Strategy`](strategies.md) | `FedAvg()` | Aggregation algorithm (a `FedAvg`, `FedProx`, `FedMedian`, `TrimmedMean`, `Krum`, or `MultiKrum` instance). |
 | `storage` | `str` | `"local://checkpoints"` | Checkpoint storage URI. Supports `local://`, `hf-xet://`, and any fsspec-style scheme your environment can resolve. |
 | `layer_shapes` | `dict[str, int] \| None` | small demo net | Maps layer name → parameter count. Must match the model being trained for real experiments. |
 

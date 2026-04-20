@@ -68,10 +68,6 @@ coordinate. The robust aggregators are algorithmically heavier than
 FedAvg — the Rust-vs-Python gap grows with them. Measure each after
 implementation before quoting speedups.
 
-- **Krum / Multi-Krum** (Blanchard et al., NeurIPS 2017) — pick the client(s)
-  with smallest sum of squared distances to the `n - f - 2` nearest neighbours.
-  Multi-Krum averages the top-`m` selected, better behaved on non-IID than
-  single-Krum. Standard Byzantine-robust baseline; phalanx has both variants.
 - **Bulyan** (El Mhamdi et al., 2018) — Multi-Krum → coordinate-wise trimmed
   mean. Breakdown point `(n - 2f - 3)`. Strongest distance-based defense in
   phalanx; gold-standard for Byzantine-robust evaluation.
@@ -346,6 +342,12 @@ Dated one-liners for shipped roadmap-scale work. Most recent first. The
 commit history and `docs/benchmarks.md` / `docs/convergence.md` are the
 authoritative record; this log is the human index into them.
 
+- **2026-04-20** — Krum + Multi-Krum Byzantine-robust aggregators
+  (`Strategy::Krum { f }`, `Strategy::MultiKrum { f, m }`) shipped together
+  with shared `krum_select` Rust kernel, dataclass-strategy migration
+  (`FedAvg | FedProx | FedMedian | Krum | MultiKrum`), and
+  `RoundSummary.selected_client_ids`. Bench + Python-reference rows in
+  `docs/benchmarks.md`.
 - **2026-04-20** — Real Hugging Face dataset loader
   (`velocity.datasets.load_federated`) with column aliasing, canonical
   train/test/validation split preference, and partition dispatch.

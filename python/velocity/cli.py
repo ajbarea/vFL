@@ -25,9 +25,9 @@ def _parse_strategy_cli(value: str) -> Strategy:
     """Parse a CLI-supplied strategy string, surfacing errors as BadParameter.
 
     Accepts the bare class name for parameter-free strategies (``FedAvg``,
-    ``FedProx``, ``FedMedian``). Parameterised strategies (``Krum``,
-    ``MultiKrum``) need ``name:key=value,key=value`` form, e.g. ``Krum:f=2``
-    or ``MultiKrum:f=2,m=7``.
+    ``FedProx``, ``FedMedian``). Parameterised strategies (``TrimmedMean``,
+    ``Krum``, ``MultiKrum``) need ``name:key=value,key=value`` form, e.g.
+    ``TrimmedMean:k=1``, ``Krum:f=2``, or ``MultiKrum:f=2,m=7``.
     """
     if ":" in value:
         name, _, rest = value.partition(":")
@@ -87,7 +87,7 @@ def run(
     strategy: str = typer.Option(
         "FedAvg",
         help="Strategy name ('FedAvg', 'FedMedian') or 'Name:key=value[,key=value]' "
-        "form (e.g. 'Krum:f=2', 'MultiKrum:f=2,m=7').",
+        "form (e.g. 'TrimmedMean:k=1', 'Krum:f=2', 'MultiKrum:f=2,m=7').",
     ),
     storage: str = typer.Option("local://checkpoints", help="Storage URI."),
     min_clients: int = typer.Option(1, min=1, help="Minimum number of clients."),
@@ -112,7 +112,7 @@ def simulate_attack(
     strategy: str = typer.Option(
         "FedAvg",
         help="Strategy name ('FedAvg', 'FedMedian') or 'Name:key=value[,key=value]' "
-        "form (e.g. 'Krum:f=2', 'MultiKrum:f=2,m=7').",
+        "form (e.g. 'TrimmedMean:k=1', 'Krum:f=2', 'MultiKrum:f=2,m=7').",
     ),
     min_clients: int = typer.Option(1, min=1, help="Minimum number of clients."),
     intensity: float = typer.Option(0.1, min=0.0, help="Attack intensity."),

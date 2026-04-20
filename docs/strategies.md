@@ -1,6 +1,6 @@
 # Strategies
 
-VelocityFL ships five aggregation strategies. All five are implemented in Rust and exposed as frozen Python dataclasses in `velocity.strategy`. Pick one based on your threat model and client heterogeneity.
+VelocityFL ships six aggregation strategies. All six are implemented in Rust and exposed as frozen Python dataclasses in `velocity.strategy`. Pick one based on your threat model and client heterogeneity.
 
 ## Decision guide
 
@@ -9,13 +9,14 @@ VelocityFL ships five aggregation strategies. All five are implemented in Rust a
 | IID clients, no adversary, you want a baseline | **`FedAvg`** |
 | Heterogeneous clients, drifting local updates | **`FedProx(mu=…)`** |
 | Untrusted clients, possible Byzantine updates, <½ of clients compromised | **`FedMedian`** |
+| Untrusted clients, up to `k` compromised per coordinate, want averaged survivors | **`TrimmedMean(k=…)`** |
 | Untrusted clients, up to `f` compromised, want a single winner | **`Krum(f=…)`** |
 | Untrusted clients, up to `f` compromised, want to average `m` survivors | **`MultiKrum(f=…, m=…)`** |
 
-All five are value objects: compare with `==`, safe to hash, safe to share between threads.
+All six are value objects: compare with `==`, safe to hash, safe to share between threads.
 
 ```python
-from velocity import FedAvg, FedProx, FedMedian, Krum, MultiKrum
+from velocity import FedAvg, FedProx, FedMedian, TrimmedMean, Krum, MultiKrum
 
 FedAvg() == FedAvg()                  # True
 FedProx(mu=0.01) != FedProx(mu=0.1)   # True
@@ -77,6 +78,34 @@ server = VelocityServer(model_id=..., dataset=..., strategy=FedMedian())
 ```
 
 > **Pair with attack simulation** — `FedMedian` is the natural companion to the [attacks catalog](attacks.md). Run the same experiment with `FedAvg` and `FedMedian`, then compare `global_loss` trajectories to see resilience in action.
+
+---
+
+## `TrimmedMean`
+
+Coordinate-wise mean after dropping the `k` smallest and `k` largest values. From Yin et al. (2018, [arXiv:1803.01498](https://arxiv.org/abs/1803.01498)).
+
+```text
+For each coordinate i:
+  s = sort( w_{t+1}^k[i]  for k = 1..K )
+  w_{t+1}[i] = mean( s[k : K-k] )
+```
+
+**Use when** you want a Byzantine-robust aggregator that is cheaper than `FedMedian` for small `k` and dimension-independent. Tunes the trim budget directly: `k=0` is the uniform mean, `k=⌊(n-1)/2⌋` reduces to the (odd-n) median.
+
+| Field | Constraint | Effect |
+|---|---|---|
+| `k` | `0 ≤ k`, `2k < n` | Per-coordinate Byzantine tolerance. Raises if the round has fewer than `2k + 1` clients. |
+
+```python
+from velocity import VelocityServer, TrimmedMean
+server = VelocityServer(model_id=..., dataset=..., strategy=TrimmedMean(k=1))
+# Tolerates 1 Byzantine client per coordinate; needs at least 3 clients per round.
+```
+
+> **Why uniform, not sample-weighted** — same reason as `MultiKrum`: a Byzantine client can lie about `num_samples` to pull the mean in a weighted average. `TrimmedMean` discards `num_samples` deliberately; pinned by `test_trimmed_mean_k0_is_uniform_mean`.
+
+> **Per-coordinate robustness, not per-client.** Different coordinates trim different client subsets — there is no single "selected" client list. `RoundSummary.selected_client_ids` therefore returns every participating client (same convention as `FedMedian`).
 
 ---
 
@@ -145,6 +174,7 @@ The CLI accepts `Name` for parameter-free strategies and `Name:key=value[,key=va
 ```bash
 velocity run  --strategy FedAvg              --model-id demo/m --dataset demo/d
 velocity run  --strategy FedProx:mu=0.05     --model-id demo/m --dataset demo/d
+velocity run  --strategy TrimmedMean:k=1     --model-id demo/m --dataset demo/d --min-clients 3
 velocity run  --strategy Krum:f=2            --model-id demo/m --dataset demo/d --min-clients 7
 velocity run  --strategy MultiKrum:f=2,m=5   --model-id demo/m --dataset demo/d --min-clients 7
 velocity sweep --strategies FedAvg,Krum:f=1  --rounds 5

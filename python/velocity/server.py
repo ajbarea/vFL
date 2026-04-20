@@ -14,6 +14,7 @@ from velocity.strategy import (
     Krum,
     MultiKrum,
     Strategy,
+    TrimmedMean,
     strategy_name,
 )
 
@@ -245,8 +246,9 @@ class VelocityServer:
     def _map_strategy(self) -> Any:
         """Convert a Python :class:`Strategy` dataclass to a Rust Strategy object.
 
-        Dispatches on type so parameters (``FedProx.mu``, ``Krum.f``,
-        ``MultiKrum.m``) flow through without being re-typed in a registry.
+        Dispatches on type so parameters (``FedProx.mu``, ``TrimmedMean.k``,
+        ``Krum.f``, ``MultiKrum.m``) flow through without being re-typed in
+        a registry.
         """
         s = self.strategy
         if isinstance(s, FedAvg):
@@ -255,6 +257,8 @@ class VelocityServer:
             return _rust.Strategy.fed_prox(s.mu)
         if isinstance(s, FedMedian):
             return _rust.Strategy.fed_median()
+        if isinstance(s, TrimmedMean):
+            return _rust.Strategy.trimmed_mean(s.k)
         if isinstance(s, Krum):
             return _rust.Strategy.krum(s.f)
         if isinstance(s, MultiKrum):

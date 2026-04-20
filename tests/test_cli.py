@@ -4,7 +4,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 from velocity.cli import _coerce_scalar, _parse_strategy_cli, app
-from velocity.strategy import FedAvg, FedMedian, Krum, MultiKrum
+from velocity.strategy import FedAvg, FedMedian, Krum, MultiKrum, TrimmedMean
 
 runner = CliRunner()
 
@@ -26,7 +26,7 @@ def test_cli_strategies():
     result = runner.invoke(app, ["strategies"])
     assert result.exit_code == 0
     lines = {line.strip() for line in result.stdout.splitlines() if line.strip()}
-    assert {"FedAvg", "FedProx", "FedMedian", "Krum", "MultiKrum"}.issubset(lines)
+    assert {"FedAvg", "FedProx", "FedMedian", "TrimmedMean", "Krum", "MultiKrum"}.issubset(lines)
 
 
 def test_cli_run_json_output():
@@ -63,6 +63,7 @@ def test_parse_strategy_cli_bare_name():
 def test_parse_strategy_cli_colon_form_parameterised():
     assert _parse_strategy_cli("Krum:f=2") == Krum(f=2)
     assert _parse_strategy_cli("MultiKrum:f=2,m=7") == MultiKrum(f=2, m=7)
+    assert _parse_strategy_cli("TrimmedMean:k=1") == TrimmedMean(k=1)
     # trailing comma / empty pair is tolerated
     assert _parse_strategy_cli("Krum:f=2,") == Krum(f=2)
 
