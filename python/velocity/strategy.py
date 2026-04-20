@@ -124,9 +124,7 @@ def parse_strategy(value: str | dict[str, Any] | Strategy) -> Strategy:
         if not isinstance(kind, str):
             raise ValueError("strategy dict must have a string 'type' (or 'name') key")
         cls = _lookup(kind)
-        params: dict[str, Any] = {
-            k: v for k, v in value_dict.items() if k not in {"type", "name"}
-        }
+        params: dict[str, Any] = {k: v for k, v in value_dict.items() if k not in {"type", "name"}}
         field_names = {f.name for f in fields(cls)}
         unknown = set(params) - field_names
         if unknown:
