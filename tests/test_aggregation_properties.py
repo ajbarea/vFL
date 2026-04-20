@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+from strategy_reference import krum_reference, multi_krum_reference
 from velocity import _core
 
 # ---------------------------------------------------------------------------
@@ -205,3 +207,91 @@ def test_aggregate_rejects_mismatched_layer_sizes() -> None:
 def test_aggregate_rejects_empty_input() -> None:
     with pytest.raises(Exception):  # noqa: B017 — PyO3 boundary
         _core.aggregate([], _core.Strategy.fed_avg())
+
+
+# ---------------------------------------------------------------------------
+# Krum / Multi-Krum — parity with a NumPy oracle
+#
+# The Byzantine-robust kernels are where a bug is hardest to spot by reading
+# diffs: the distance matrix, the k-th order statistic, and the argmin all
+# silently "work" on any input. These tests pin numeric parity with an
+# independent NumPy implementation so a regression in the Rust kernel lights
+# up immediately.
+# ---------------------------------------------------------------------------
+
+
+def _as_dicts(updates: list[_core.ClientUpdate]) -> list[dict]:
+    return [{"num_samples": u.num_samples, "weights": dict(u.weights)} for u in updates]
+
+
+def _assert_weights_close(
+    got: dict[str, list[float]],
+    want: dict[str, np.ndarray],
+    tol: float = 1e-5,
+) -> None:
+    assert got.keys() == want.keys()
+    for name in got:
+        np.testing.assert_allclose(got[name], want[name], rtol=tol, atol=tol)
+
+
+@given(updates=_client_updates(n_clients=5))
+@_SETTINGS
+def test_krum_matches_numpy_oracle(updates: list[_core.ClientUpdate]) -> None:
+    """Rust Krum(f=1) over 5 clients must pick the same winner + weights as NumPy."""
+    rust_result = _core.aggregate(updates, _core.Strategy.krum(1))
+    want_weights, _ = krum_reference(_as_dicts(updates), f=1)
+    _assert_weights_close(rust_result, want_weights)
+
+
+@given(updates=_client_updates(n_clients=6))
+@_SETTINGS
+def test_multi_krum_matches_numpy_oracle(updates: list[_core.ClientUpdate]) -> None:
+    """Rust MultiKrum(f=1, m=default) must match NumPy's uniform mean of top-(n-f)."""
+    rust_result = _core.aggregate(updates, _core.Strategy.multi_krum(1, None))
+    want_weights, _ = multi_krum_reference(_as_dicts(updates), f=1, m=None)
+    _assert_weights_close(rust_result, want_weights)
+
+
+@given(updates=_client_updates(n_clients=5))
+@_SETTINGS
+def test_krum_equals_multi_krum_m_one(updates: list[_core.ClientUpdate]) -> None:
+    """Krum(f) and MultiKrum(f, m=1) must produce identical weights.
+
+    MultiKrum with m=1 reduces to selecting the single lowest-score client
+    (the mean of a 1-element set is that element). This is an algebraic
+    identity — a divergence would mean one of the kernels has a scoring bug.
+    """
+    via_krum = _core.aggregate(updates, _core.Strategy.krum(1))
+    via_multi = _core.aggregate(updates, _core.Strategy.multi_krum(1, 1))
+    for name in via_krum:
+        np.testing.assert_allclose(via_krum[name], via_multi[name], rtol=1e-6, atol=1e-6)
+
+
+def test_krum_rejects_insufficient_clients() -> None:
+    """Krum requires n >= 2f+3; below that the kernel must refuse."""
+    # f=1 ⇒ needs 5; we give it 4.
+    updates = [_core.ClientUpdate(num_samples=10, weights={"w": [float(i)] * 3}) for i in range(4)]
+    with pytest.raises(Exception):  # noqa: B017 — PyO3 boundary
+        _core.aggregate(updates, _core.Strategy.krum(1))
+
+
+def test_multi_krum_m_equals_n_minus_f_is_uniform_mean() -> None:
+    """With f=0 and m=n, MultiKrum is the uniform (not sample-weighted) mean.
+
+    Pin this boundary: if a refactor ever sneaks sample-weighting into the
+    Multi-Krum path, Byzantine clients could amplify their pull by inflating
+    `num_samples`. Keeping MultiKrum uniform-only is the whole point.
+    """
+    weights_per_client = [
+        {"w": [1.0, 2.0, 3.0]},
+        {"w": [2.0, 4.0, 6.0]},
+        {"w": [3.0, 6.0, 9.0]},
+    ]
+    # Lopsided num_samples; uniform mean ignores them.
+    updates = [
+        _core.ClientUpdate(num_samples=samples, weights=w)
+        for samples, w in zip([1, 1, 1_000_000], weights_per_client)
+    ]
+    result = _core.aggregate(updates, _core.Strategy.multi_krum(0, 3))
+    expected = [2.0, 4.0, 6.0]  # uniform mean of the three vectors
+    np.testing.assert_allclose(result["w"], expected, rtol=1e-6, atol=1e-6)

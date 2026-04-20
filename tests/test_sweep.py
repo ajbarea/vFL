@@ -9,13 +9,15 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 from velocity.cli import app
-from velocity.strategy import Strategy
+from velocity.strategy import FedAvg, FedMedian, FedProx, Krum, MultiKrum, parse_strategy
 from velocity.sweep import (
     AttackSpec,
     RunResult,
     RunSpec,
     SweepResult,
-    _resolve_strategy,
+    _coerce_sweep_scalar,
+    _parse_sweep_strategy,
+    _run_one,
     capture_manifest,
     load_config,
     render_comparison,
@@ -24,15 +26,33 @@ from velocity.sweep import (
 )
 
 
-def test_resolve_strategy_case_insensitive():
-    assert _resolve_strategy("fedavg") is Strategy.FedAvg
-    assert _resolve_strategy("FedMedian") is Strategy.FedMedian
-    assert _resolve_strategy("  FEDPROX  ") is Strategy.FedProx
+def test_parse_strategy_case_insensitive():
+    assert parse_strategy("fedavg") == FedAvg()
+    assert parse_strategy("FedMedian") == FedMedian()
+    assert parse_strategy("  FEDPROX  ") == FedProx()
 
 
-def test_resolve_strategy_unknown_raises():
+def test_parse_strategy_unknown_raises():
     with pytest.raises(ValueError, match="unknown strategy"):
-        _resolve_strategy("FedNope")
+        parse_strategy("FedNope")
+
+
+def test_parse_strategy_dict_form():
+    assert parse_strategy({"type": "Krum", "f": 2}) == Krum(f=2)
+    assert parse_strategy({"type": "MultiKrum", "f": 1, "m": 3}) == MultiKrum(f=1, m=3)
+    # m defaults to None when omitted
+    assert parse_strategy({"type": "MultiKrum", "f": 1}) == MultiKrum(f=1, m=None)
+
+
+def test_parse_strategy_passthrough_and_errors():
+    # Idempotent: a strategy instance round-trips.
+    assert parse_strategy(FedAvg()) == FedAvg()
+    # Missing required param surfaces a typed error.
+    with pytest.raises(ValueError, match="requires parameters"):
+        parse_strategy("Krum")
+    # Unknown parameter name.
+    with pytest.raises(ValueError, match="unknown parameter"):
+        parse_strategy({"type": "Krum", "f": 2, "bogus": 1})
 
 
 def test_specs_from_cli_includes_baseline_per_strategy():
@@ -104,7 +124,7 @@ intensity = 0.3
     specs = load_config(toml)
     assert len(specs) == 2
     assert specs[0].name == "a"
-    assert specs[0].strategy is Strategy.FedAvg
+    assert specs[0].strategy == FedAvg()
     assert specs[0].rounds == 2
     assert specs[1].attacks[0].type == "model_poisoning"
     assert specs[1].attacks[0].intensity == 0.3
@@ -127,7 +147,7 @@ def test_run_spec_rejects_unknown_fields():
     with pytest.raises(ValidationError):
         RunSpec(
             name="x",
-            strategy=Strategy.FedAvg,
+            strategy=FedAvg(),
             bogus_field="nope",  # type: ignore[call-arg]
         )
 
@@ -186,7 +206,7 @@ def test_render_comparison_shows_nan_when_loss_missing(tmp_path: Path):
 
 
 def test_render_comparison_picks_lowest_loss_winner():
-    def _run(name: str, strategy: Strategy, loss: float) -> RunResult:
+    def _run(name: str, strategy, loss: float) -> RunResult:
         return RunResult(
             spec=RunSpec(name=name, strategy=strategy, rounds=1, min_clients=1),
             rounds=[],
@@ -197,9 +217,9 @@ def test_render_comparison_picks_lowest_loss_winner():
 
     result = SweepResult(
         runs=[
-            _run("a", Strategy.FedAvg, 0.5),
-            _run("b", Strategy.FedMedian, 0.1),  # winner
-            _run("c", Strategy.FedProx, 0.3),
+            _run("a", FedAvg(), 0.5),
+            _run("b", FedMedian(), 0.1),  # winner
+            _run("c", FedProx(), 0.3),
         ],
         total_elapsed=2.0,
         serial_elapsed=6.0,
@@ -299,3 +319,94 @@ def test_cli_sweep_rejects_unknown_attack(tmp_path: Path):
         ],
     )
     assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# _parse_sweep_strategy / _coerce_sweep_scalar — sweep-CLI shorthand internals
+# ---------------------------------------------------------------------------
+
+
+def test_parse_sweep_strategy_bare_name():
+    assert _parse_sweep_strategy("FedAvg") == FedAvg()
+    assert _parse_sweep_strategy("FedMedian") == FedMedian()
+
+
+def test_parse_sweep_strategy_colon_form():
+    assert _parse_sweep_strategy("Krum:f=2") == Krum(f=2)
+    assert _parse_sweep_strategy("MultiKrum:f=1,m=3") == MultiKrum(f=1, m=3)
+    # Trailing comma / empty pair is tolerated
+    assert _parse_sweep_strategy("Krum:f=2,") == Krum(f=2)
+
+
+def test_parse_sweep_strategy_colon_form_with_none():
+    # `m=none` should coerce to None, making MultiKrum's default-at-aggregation-time path explicit
+    assert _parse_sweep_strategy("MultiKrum:f=1,m=none") == MultiKrum(f=1, m=None)
+
+
+def test_coerce_sweep_scalar_none_forms():
+    assert _coerce_sweep_scalar("none") is None
+    assert _coerce_sweep_scalar("NULL") is None
+
+
+def test_coerce_sweep_scalar_int_float_string():
+    assert _coerce_sweep_scalar("42") == 42
+    assert isinstance(_coerce_sweep_scalar("42"), int)
+    assert _coerce_sweep_scalar("3.14") == 3.14
+    assert _coerce_sweep_scalar("hello") == "hello"
+
+
+# ---------------------------------------------------------------------------
+# Strategy serialisation round-trip — exercises _serialize_strategy
+# ---------------------------------------------------------------------------
+
+
+def test_run_spec_strategy_serialises_with_fields():
+    # model_dump invokes _serialize_strategy; the result must feed straight
+    # back into model_validate (same shape parse_strategy accepts).
+    spec = RunSpec(name="k", strategy=Krum(f=2), rounds=1, min_clients=1)
+    dumped = spec.model_dump(mode="json")
+    assert dumped["strategy"] == {"type": "Krum", "f": 2}
+    # Round-trip
+    rehydrated = RunSpec.model_validate(dumped)
+    assert rehydrated.strategy == Krum(f=2)
+
+
+def test_run_spec_multikrum_serialises_all_fields():
+    spec = RunSpec(name="mk", strategy=MultiKrum(f=1, m=3), rounds=1, min_clients=1)
+    dumped = spec.model_dump(mode="json")
+    assert dumped["strategy"] == {"type": "MultiKrum", "f": 1, "m": 3}
+
+
+def test_run_spec_fedavg_serialises_with_no_params():
+    # Parameter-free dataclasses still emit {"type": ...} cleanly.
+    spec = RunSpec(name="b", strategy=FedAvg(), rounds=1, min_clients=1)
+    assert spec.model_dump(mode="json")["strategy"] == {"type": "FedAvg"}
+
+
+# ---------------------------------------------------------------------------
+# _run_one — worker body, called directly (not via subprocess) for coverage
+# ---------------------------------------------------------------------------
+
+
+def test_run_one_happy_path_returns_serialisable_dict():
+    spec = RunSpec(name="direct", strategy=FedAvg(), rounds=1, min_clients=1)
+    result = _run_one(spec.model_dump(mode="json"))
+    assert result["spec"]["name"] == "direct"
+    assert isinstance(result["rounds"], list)
+    assert result["error"] is None
+    assert "final_loss" in result and "mean_loss" in result
+    # Re-validates cleanly — round-trip through the pydantic schema.
+    rehydrated = RunResult.model_validate(result)
+    assert rehydrated.succeeded
+
+
+def test_run_one_captures_aggregation_error_as_string():
+    # Krum(f=2) requires n >= 7; with min_clients=1 the Rust kernel raises,
+    # and _run_one must catch it and surface an error string rather than crash.
+    spec = RunSpec(name="err", strategy=Krum(f=2), rounds=1, min_clients=1)
+    result = _run_one(spec.model_dump(mode="json"))
+    assert result["error"] is not None
+    assert isinstance(result["error"], str)
+    # final_loss / mean_loss fall back to NaN when no rounds succeeded
+    assert result["final_loss"] != result["final_loss"]  # NaN != NaN
+    assert result["mean_loss"] != result["mean_loss"]

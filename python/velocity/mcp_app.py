@@ -239,11 +239,15 @@ def run_demo(
     if rounds > MAX_DEMO_ROUNDS:
         raise ValueError(f"rounds must be <= {MAX_DEMO_ROUNDS}")
 
-    from velocity import Strategy, VelocityServer
+    from velocity import FedAvg, VelocityServer
+    from velocity.strategy import parse_strategy, strategy_name
 
-    strat = Strategy[strategy] if strategy in Strategy.__members__ else Strategy.FedAvg
+    try:
+        strat = parse_strategy(strategy)
+    except ValueError:
+        strat = FedAvg()
     config = {
-        "strategy": strat.value,
+        "strategy": strategy_name(strat),
         "model_id": model_id,
         "rounds": rounds,
         "min_clients": min_clients,

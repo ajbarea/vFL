@@ -104,28 +104,23 @@ Winner (lowest final loss): **fedmedian-under-poisoning**
 Most robust under attack: **FedMedian** (Δ loss 0.011 vs 0.321 for FedAvg)
 ```
 
-## Modularity / DRY — what this forces us to fix
+## Modularity / DRY — current state
 
-Designing `sweep` exposes existing non-DRY spots. Fix them as part of this work:
-
-1. **`cli.py::_parse_strategy`** has a hardcoded `{"fedavg": Strategy.FedAvg, ...}`
-   dict. Replace with `Strategy(value.title())` — the enum is the single source.
-   Adding a new strategy should touch only Rust + the Python enum mirror.
-2. **`server.py::_map_strategy`** has an if-ladder mapping Python enum → Rust
-   factory. Promote to a `dict[Strategy, Callable]` registry, then adding a new
-   strategy is one registry entry.
-3. **`attacks.py::VALID_ATTACKS`** is a `frozenset[str]` duplicating Rust's match
-   arms in `orchestrator.rs::register_attack`. The Rust layer should expose a
-   `valid_attacks()` free function; Python reads from it. Single source.
-4. **`simulate_attack` kwargs** (intensity/count/fraction) are a union of all
-   attacks' parameters. When a 5th attack arrives with its own params, the API
-   balloons. Switch to `simulate_attack(attack_type: str, **params)` — Rust
-   already dispatches on `attack_type`, so Python can pass params through
-   opaquely. Clearer, DRY-er, researcher adds an attack without touching CLI.
-
-These are prerequisites to "adding a new strategy/attack is easy." Doing `sweep`
-first without them means the sweep CLI also needs hardcoded mappings — every new
-strategy touches 4 files instead of 1.
+1. **`parse_strategy`** (`python/velocity/strategy.py`) is the single source
+   of truth for coercing strings / dicts / instances into a `Strategy`
+   sum-type instance. CLI, TOML, and sweep loader all route through it —
+   adding a new strategy means one dataclass + one `ALL_STRATEGIES` entry.
+2. **`server.py::_map_strategy`** isinstance-dispatches on each dataclass
+   variant. Two lines per new strategy (one `isinstance` check + one Rust
+   factory call).
+3. **`attacks.py::VALID_ATTACKS`** still duplicates the Rust match arms in
+   `orchestrator.rs::register_attack`. The Rust layer should expose a
+   `valid_attacks()` free function; Python reads from it. Listed as an open
+   item in ROADMAP.
+4. **`simulate_attack` kwargs** (intensity/count/fraction) are a union of
+   all attacks' parameters. Still pending: switch to
+   `simulate_attack(attack_type: str, **params)` once the Rust side exposes
+   per-attack parameter schemas.
 
 ## Agent integration (follow-up, not MVP)
 
@@ -163,8 +158,8 @@ per-round aggregation that each worker calls.
 
 1. `velocity sweep --strategies FedAvg,FedMedian --rounds 5` runs both concurrently
    and produces `comparison.md` in under 2× single-strategy wall time (ideally ~1×).
-2. Adding a new strategy (after the DRY fixes) requires touching only `strategy.rs`
-   + `strategy.py` — no CLI or sweep changes.
+2. Adding a new strategy requires touching only `strategy.rs`
+   + `strategy.py` + a `_map_strategy` isinstance arm — no CLI or sweep changes.
 3. Adding a new attack requires touching only `security.rs` — Python is a thin
    passthrough.
 4. `make ci` stays green with the new code.

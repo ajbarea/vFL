@@ -22,7 +22,7 @@ hide:
 
 <div class="hero-tagline" markdown>
 
-:octicons-cpu-24: Rust Core | :octicons-code-24: Python API | :octicons-graph-24: [~92× Faster Aggregation](benchmarks.md)
+:octicons-cpu-24: Rust Core | :octicons-code-24: Python API | :octicons-graph-24: [4–10× Faster Aggregation](benchmarks.md)
 { .hero-modes }
 
 </div>
@@ -43,7 +43,7 @@ hide:
 <section class="landing-section landing-section--promise">
   <div class="section-inner">
     <h2 class="section-title">Rust core, Python surface</h2>
-    <p class="section-lead">A PyO3 extension runs the aggregation math; a Typer CLI and a thin Python API keep experimentation friction low. Prefect wraps each round so you get flow-level visibility without custom logging glue. The aggregation kernel runs <a href="benchmarks/">~92× faster</a> than the pure-Python fallback at 1M params (4.75 ms vs 438 ms, `FedAvg`) &mdash; the measured claim is on aggregation only, not end-to-end training, with honest caveats on PyO3 marshaling cost.</p>
+    <p class="section-lead">A PyO3 extension runs the aggregation math; a Typer CLI and a thin Python API keep experimentation friction low. Prefect wraps each round so you get flow-level visibility without custom logging glue. The aggregation kernel runs <a href="benchmarks/">4–10× faster</a> than the pure-Python fallback, widening with parameter count (6.9× at 1M params, 10.4× at 10M, <code>FedAvg</code>) &mdash; the measured claim is on aggregation only, not end-to-end training, with honest caveats on PyO3 marshaling cost.</p>
   </div>
 </section>
 
@@ -107,7 +107,7 @@ hide:
       <a href="strategies/" class="feature-card" style="--card-accent: #d8b4fe">
         <span class="feature-icon material-symbols-outlined">hub</span>
         <div class="feature-name">Strategies</div>
-        <p>FedAvg, FedProx, FedMedian &mdash; and where to add your own.</p>
+        <p>FedAvg, FedProx, FedMedian, Krum, Multi-Krum &mdash; and where to add your own.</p>
       </a>
       <a href="attacks/" class="feature-card" style="--card-accent: #e9d5ff">
         <span class="feature-icon material-symbols-outlined">bug_report</span>
@@ -129,7 +129,7 @@ hide:
     <div class="feature-grid feature-grid--compact">
       <div class="feature-card feature-card--flat">
         <div class="feature-name"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">bolt</span> Rust Hot Path</div>
-        <p>Aggregation, median, and attack simulation compiled to Rust via PyO3. <a href="benchmarks/">~92× faster</a> aggregation than the pure-Python fallback at 1M params (4.75 ms vs 438 ms, `FedAvg`); PyO3 list-marshaling on the return path is the remaining FFI overhead (tracked).</p>
+        <p>Aggregation, median, Krum/Multi-Krum, and attack simulation compiled to Rust via PyO3. <a href="benchmarks/">4–10× faster</a> aggregation than the pure-Python fallback, widening with parameter count (<code>FedAvg</code>: 77.8 ms vs 538 ms at 1M params, 817 ms vs 8.48 s at 10M); PyO3 list-marshaling on the return path is the remaining FFI overhead (tracked).</p>
       </div>
       <div class="feature-card feature-card--flat">
         <div class="feature-name"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">science</span> Research-Friendly</div>

@@ -19,14 +19,15 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from velocity import __version__
-from velocity.strategy import Strategy
+from velocity.strategy import Strategy, parse_strategy, strategy_name
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -48,7 +49,7 @@ class AttackSpec(BaseModel):
 class RunSpec(BaseModel):
     """A single experiment — strategy, dataset/model, rounds, optional attacks."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     name: str
     strategy: Strategy
@@ -59,6 +60,20 @@ class RunSpec(BaseModel):
     min_clients: int = Field(default=1, ge=1)
     seed: int = 0
     attacks: list[AttackSpec] = Field(default_factory=list)
+
+    @field_validator("strategy", mode="before")
+    @classmethod
+    def _coerce_strategy(cls, value: Any) -> Strategy:
+        # Pydantic serialises strategies as ``{"type": "Krum", "f": 2}`` below,
+        # so the same shape round-trips through model_dump → model_validate.
+        return parse_strategy(value)
+
+    @field_serializer("strategy")
+    def _serialize_strategy(self, value: Strategy) -> dict[str, Any]:
+        payload: dict[str, Any] = {"type": strategy_name(value)}
+        for f in fields(type(value)):
+            payload[f.name] = getattr(value, f.name)
+        return payload
 
 
 class RunResult(BaseModel):
@@ -118,16 +133,6 @@ def load_config(path: str | Path) -> list[RunSpec]:
     return [RunSpec.model_validate({**shared, **run}) for run in runs]
 
 
-def _resolve_strategy(name: str) -> Strategy:
-    """Case-insensitive lookup from a user-supplied string."""
-    normalized = name.strip().lower()
-    for strategy in Strategy:
-        if strategy.value.lower() == normalized:
-            return strategy
-    valid = ", ".join(s.value for s in Strategy)
-    raise ValueError(f"unknown strategy '{name}'. Valid: {valid}")
-
-
 def specs_from_cli(
     *,
     strategies: list[str],
@@ -141,16 +146,18 @@ def specs_from_cli(
     """Build a strategy x attack matrix from CLI flag values.
 
     Always includes a no-attack baseline per strategy so the researcher can
-    see strategy performance with and without each attack.
+    see strategy performance with and without each attack. Strategy strings
+    follow :func:`velocity.strategy.parse_strategy` — ``"FedAvg"`` for
+    defaults, ``"Krum:f=2"`` for parameterised ones.
     """
     if not strategies:
         raise ValueError("at least one strategy is required")
-    resolved = [_resolve_strategy(s) for s in strategies]
+    resolved = [_parse_sweep_strategy(s) for s in strategies]
     attack_specs: list[AttackSpec | None] = [None, *(AttackSpec(type=a) for a in attacks)]
     specs: list[RunSpec] = []
     for strategy in resolved:
         for attack in attack_specs:
-            parts: list[str] = [strategy.value.lower()]
+            parts: list[str] = [strategy_name(strategy).lower()]
             if attack is not None:
                 parts.append(attack.type)
             else:
@@ -168,6 +175,38 @@ def specs_from_cli(
                 )
             )
     return specs
+
+
+def _parse_sweep_strategy(value: str) -> Strategy:
+    """Parse a sweep-CLI strategy string (same syntax as the main CLI).
+
+    Accepts ``FedAvg`` or ``Krum:f=2,m=3`` — delegates to
+    :func:`parse_strategy` after splitting the colon form.
+    """
+    if ":" in value:
+        name, _, rest = value.partition(":")
+        params: dict[str, Any] = {}
+        for pair in rest.split(","):
+            if not pair:
+                continue
+            k, _, v = pair.partition("=")
+            params[k.strip()] = _coerce_sweep_scalar(v.strip())
+        return parse_strategy({"type": name, **params})
+    return parse_strategy(value)
+
+
+def _coerce_sweep_scalar(raw: str) -> Any:
+    if raw.lower() in {"none", "null"}:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+    try:
+        return float(raw)
+    except ValueError:
+        pass
+    return raw
 
 
 def _is_nan(value: Any) -> bool:
@@ -371,7 +410,7 @@ def render_comparison(result: SweepResult) -> str:
         final = f"{r.final_loss:.4f}" if not _is_nan(r.final_loss) else "NaN"
         mean = f"{r.mean_loss:.4f}" if not _is_nan(r.mean_loss) else "NaN"
         lines.append(
-            f"| {r.spec.name} | {r.spec.strategy.value} | {attack} | "
+            f"| {r.spec.name} | {strategy_name(r.spec.strategy)} | {attack} | "
             f"{final} | {mean} | {r.elapsed_seconds:.1f}s | {status} |"
         )
 

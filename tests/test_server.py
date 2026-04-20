@@ -4,7 +4,7 @@ import json
 
 import pytest
 from velocity.server import VelocityServer, _PurePythonOrchestrator
-from velocity.strategy import Strategy
+from velocity.strategy import FedAvg, FedMedian, FedProx
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def small_server():
     return VelocityServer(
         model_id="test/model",
         dataset="test-dataset",
-        strategy=Strategy.FedAvg,
+        strategy=FedAvg(),
         storage="local://test",
         layer_shapes={"fc1": 4, "fc2": 2},
     )
@@ -21,7 +21,7 @@ def small_server():
 
 def test_server_defaults(small_server):
     assert small_server.model_id == "test/model"
-    assert small_server.strategy == Strategy.FedAvg
+    assert small_server.strategy == FedAvg()
     assert small_server.global_weights == {}
     assert small_server.history == []
 
@@ -73,16 +73,18 @@ def test_simulate_attack_all_valid_types(small_server):
     assert summaries
 
 
-def test_different_strategies():
-    for strategy in Strategy:
-        server = VelocityServer(
-            model_id="m",
-            dataset="d",
-            strategy=strategy,
-            layer_shapes={"w": 2},
-        )
-        summaries = server.run(min_clients=1, rounds=1)
-        assert summaries[0]["round"] == 1
+@pytest.mark.parametrize("strategy", [FedAvg(), FedMedian(), FedProx()])
+def test_different_strategies(strategy):
+    # Parameter-free strategies only; Krum/MultiKrum need n >= 2f+3 clients
+    # and have their own dedicated tests in test_strategy.py.
+    server = VelocityServer(
+        model_id="m",
+        dataset="d",
+        strategy=strategy,
+        layer_shapes={"w": 2},
+    )
+    summaries = server.run(min_clients=1, rounds=1)
+    assert summaries[0]["round"] == 1
 
 
 def test_default_layer_shapes():

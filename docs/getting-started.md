@@ -45,6 +45,8 @@ Expected output:
 FedAvg
 FedProx
 FedMedian
+Krum
+MultiKrum
 ```
 
 ## 3. Your first round — Python
@@ -54,12 +56,12 @@ simulated round loop — useful for sanity-checking the install and the
 attack surface before wiring up real data:
 
 ```python
-from velocity import VelocityServer, Strategy
+from velocity import VelocityServer, FedAvg
 
 server = VelocityServer(
     model_id="demo/model",
     dataset="demo/dataset",  # record-keeping string; real loading is below
-    strategy=Strategy.FedAvg,
+    strategy=FedAvg(),
 )
 
 server.simulate_attack("gaussian_noise", intensity=0.05)
@@ -127,5 +129,5 @@ Run `make` with no arguments for the full target list.
 - [CLI Reference](cli.md) — every flag, every command.
 - [Architecture](architecture.md) — how Rust, PyO3, and Python fit together.
 - [Configuration](configuration.md) — every field on `VelocityServer`.
-- [Strategies](strategies.md) — when to reach for FedAvg vs. FedProx vs. FedMedian.
+- [Strategies](strategies.md) — when to reach for FedAvg, FedProx, FedMedian, Krum, or MultiKrum.
 - [Attacks](attacks.md) — adversarial simulations baked into the core.

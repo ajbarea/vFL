@@ -30,8 +30,9 @@ import random
 from typing import Any
 
 import pytest
-from velocity import Strategy
+from velocity import FedAvg, FedMedian, FedProx, Krum, MultiKrum, Strategy
 from velocity.server import _RUST_AVAILABLE, _rust
+from velocity.strategy import strategy_name
 
 TIERS: dict[str, dict[str, int]] = {
     "tiny": {
@@ -93,12 +94,16 @@ def _python_fed_avg(
 
 
 def _make_rust_strategy(strategy: Strategy) -> Any:
-    if strategy is Strategy.FedAvg:
+    if isinstance(strategy, FedAvg):
         return _rust.Strategy.fed_avg()
-    if strategy is Strategy.FedProx:
-        return _rust.Strategy.fed_prox(0.01)
-    if strategy is Strategy.FedMedian:
+    if isinstance(strategy, FedProx):
+        return _rust.Strategy.fed_prox(strategy.mu)
+    if isinstance(strategy, FedMedian):
         return _rust.Strategy.fed_median()
+    if isinstance(strategy, Krum):
+        return _rust.Strategy.krum(strategy.f)
+    if isinstance(strategy, MultiKrum):
+        return _rust.Strategy.multi_krum(strategy.f, strategy.m)
     raise ValueError(strategy)
 
 
@@ -114,20 +119,20 @@ def _make_rust_orchestrator(tier: str, strategy: Strategy) -> Any:
     )
 
 
-STRATEGIES = [Strategy.FedAvg, Strategy.FedProx, Strategy.FedMedian]
+STRATEGIES = [FedAvg(), FedProx(), FedMedian(), Krum(f=1), MultiKrum(f=1)]
 
 
 @pytest.mark.skipif(
     not _RUST_AVAILABLE,
     reason="Rust extension not built; run `maturin develop --release`",
 )
-@pytest.mark.parametrize("strategy", STRATEGIES, ids=lambda s: s.value)
+@pytest.mark.parametrize("strategy", STRATEGIES, ids=strategy_name)
 @pytest.mark.parametrize("tier", list(TIERS.keys()))
 def test_rust_aggregate(benchmark: Any, tier: str, strategy: Strategy) -> None:
     orch = _make_rust_orchestrator(tier, strategy)
     updates = _build_rust_updates(tier)
     benchmark.group = f"aggregate/{tier}"
-    benchmark.extra_info.update({"tier": tier, "strategy": strategy.value, "path": "rust"})
+    benchmark.extra_info.update({"tier": tier, "strategy": strategy_name(strategy), "path": "rust"})
     benchmark(lambda: orch.run_round(updates))
 
 
