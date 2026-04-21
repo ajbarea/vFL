@@ -1,5 +1,5 @@
 ---
-title: VelocityFL
+title: Documentation
 hide:
   - navigation
   - toc
