@@ -26,7 +26,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.9.1
 
       - name: Set up uv (with Python)
         uses: astral-sh/setup-uv@v8.1.0
