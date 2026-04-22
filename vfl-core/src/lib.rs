@@ -22,7 +22,7 @@ fn weights_into_pydict(
 ) -> HashMap<String, Py<PyArray1<f32>>> {
     weights
         .into_iter()
-        .map(|(k, v)| (k, v.into_pyarray_bound(py).unbind()))
+        .map(|(k, v)| (k, v.into_pyarray(py).unbind()))
         .collect()
 }
 
