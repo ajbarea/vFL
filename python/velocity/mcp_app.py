@@ -23,17 +23,15 @@ import functools
 import inspect
 import time
 from collections.abc import Callable
-from typing import Any, TypeVar, cast
+from typing import Any, cast
 
 from fastmcp import FastMCP
 
 from velocity import db
 from velocity import memory as mem
 
-F = TypeVar("F", bound=Callable[..., Any])
 
-
-def logged_tool(fn: F) -> F:
+def logged_tool[F: Callable[..., Any]](fn: F) -> F:
     """Audit-log wrapper for ``@mcp.tool``.
 
     Records every call in ``agent_actions`` with tool name, args (minus
