@@ -47,11 +47,20 @@ jobs:
       - name: Hermetic convergence tests (shard + Dirichlet, no network)
         run: uv run pytest tests/test_convergence.py -v
 
-      - name: Cache MNIST dataset
+      - name: Cache Hugging Face datasets (MNIST + CIFAR-10)
         uses: actions/cache@v5
         with:
-          path: data
-          key: mnist-torchvision-v1
+          path: ~/.cache/huggingface
+          key: hf-datasets-mnist-cifar10-v1
 
-      - name: Run MNIST FedAvg example
+      - name: Run MNIST FedAvg example (shard non-IID baseline)
         run: uv run python examples/mnist_fedavg.py
+
+      - name: Run MNIST FedProx example (Dirichlet non-IID)
+        run: uv run python examples/mnist_fedprox_dirichlet.py
+
+      - name: Run MNIST Multi-Krum vs Byzantine example
+        run: uv run python examples/mnist_multikrum_vs_byzantine.py
+
+      - name: Run CIFAR-10 FedAvg Dirichlet example
+        run: uv run python examples/cifar10_fedavg_dirichlet.py
