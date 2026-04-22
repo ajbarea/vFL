@@ -70,10 +70,8 @@ implementation before quoting speedups.
 
 - **Bulyan** (El Mhamdi et al., 2018) — Multi-Krum → coordinate-wise trimmed
   mean. Breakdown point `(n - 2f - 3)`. Strongest distance-based defense in
-  phalanx; gold-standard for Byzantine-robust evaluation.
-- **Trimmed mean** — coordinate-wise mean after dropping top/bottom `k` values.
-  Simpler than Bulyan, cheaper than FedMedian (k-partial sort vs full median),
-  and dimension-independent. Good midpoint between FedAvg and FedMedian.
+  phalanx; gold-standard for Byzantine-robust evaluation. Now implementable
+  entirely in-tree: Multi-Krum + Trimmed Mean kernels both ship.
 - **Geometric median / RFA** — Weiszfeld's algorithm, ~50% Byzantine breakdown
   without explicit thresholding. Natural fit for Rust (iterative, arithmetic-heavy).
 - **ArKrum** (arXiv:2505.17226) — parameter-free Krum that estimates `f` via
@@ -342,6 +340,11 @@ Dated one-liners for shipped roadmap-scale work. Most recent first. The
 commit history and `docs/benchmarks.md` / `docs/convergence.md` are the
 authoritative record; this log is the human index into them.
 
+- **2026-04-20** — Trimmed Mean coordinate-wise Byzantine-robust aggregator
+  (`Strategy::TrimmedMean { k }`) shipped with bench + Python-reference
+  rows in `docs/benchmarks.md`. Dimension-independent k-partial sort per
+  coordinate; cheaper than FedMedian, simpler than Bulyan. Unblocks Bulyan
+  (which composes Multi-Krum with coordinate-wise trimmed mean).
 - **2026-04-20** — Krum + Multi-Krum Byzantine-robust aggregators
   (`Strategy::Krum { f }`, `Strategy::MultiKrum { f, m }`) shipped together
   with shared `krum_select` Rust kernel, dataclass-strategy migration
