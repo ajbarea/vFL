@@ -403,7 +403,6 @@ body.hero-page .md-content__inner {
   padding-bottom: 1.5rem;
   position: relative;
   z-index: 2;
-  animation: hint-bounce 2s ease-in-out infinite;
 }
 
 .scroll-chevron {
@@ -416,31 +415,44 @@ body.hero-page .md-content__inner {
   opacity: 0.6;
 }
 
-@keyframes hint-bounce {
-
-  0%,
-  100% {
-    transform: translateY(0);
+@media (prefers-reduced-motion: no-preference) {
+  .scroll-hint {
+    animation: hint-bounce 2s ease-in-out infinite;
   }
 
-  50% {
-    transform: translateY(6px);
+  @keyframes hint-bounce {
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(6px);
+    }
   }
 }
 
+/* Landing sections default to visible so no-JS users see content;
+   JS opts in to the scroll-reveal by setting .js-ready on <html>. */
 .landing-section {
   width: 100vw;
   margin-left: calc(-50vw + 50%);
   padding: 5rem 2rem;
   text-align: center;
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s ease, transform 0.7s ease;
 }
 
-.landing-section.visible {
-  opacity: 1;
-  transform: translateY(0);
+@media (prefers-reduced-motion: no-preference) {
+  html.js-ready .landing-section {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  html.js-ready .landing-section.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .landing-section--intro {
