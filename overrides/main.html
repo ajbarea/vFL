@@ -14,7 +14,7 @@
   {% set page_desc = (page.meta and page.meta.description) or config.site_description %}
   {% set page_url = page.canonical_url or config.site_url %}
   {# site_url already ends with a slash; duplicate slashes in URLs are harmless. #}
-  {% set og_image = config.site_url ~ 'assets/velocity-hero.png' %}
+  {% set og_image = config.site_url ~ 'assets/velocity-og.png' %}
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{ config.site_name }}">
