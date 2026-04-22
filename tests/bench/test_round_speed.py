@@ -145,3 +145,77 @@ def test_python_aggregate(benchmark: Any, tier: str) -> None:
     benchmark.group = f"aggregate/{tier}"
     benchmark.extra_info.update({"tier": tier, "strategy": "fed_avg", "path": "python"})
     benchmark(lambda: _python_fed_avg(updates, layer_names))
+
+
+# ----------------------------------------------------------------------------
+# PyO3 marshaling-cost probe
+#
+# `test_rust_aggregate` above measures `run_round` alone — the actual Rust
+# aggregation kernel. But a realistic FL round is `aggregate + read out global
+# weights to distribute to clients next round`. The readout goes through
+# `Orchestrator.global_weights()`, which currently returns
+# `HashMap<String, Vec<f32>>` → `dict[str, list[float]]`: one `PyFloat` per
+# parameter. At the `large` tier (10M params) that's 10M PyFloat allocations,
+# hidden outside `test_rust_aggregate`'s timing.
+#
+# The two tests below make that cost visible:
+#
+# * `test_rust_global_weights` — `global_weights()` in isolation. Scales with
+#   total parameter count (O(params)); target for the buffer-protocol numpy
+#   return path on the roadmap.
+# * `test_rust_run_round_plus_readout` — the realistic round cost: aggregate
+#   then read out. Compare to `test_python_aggregate` directly — Python's
+#   `_python_fed_avg` already returns the aggregated dict, so its "aggregate"
+#   and "aggregate + readout" costs are identical. This is the honest
+#   apples-to-apples speedup number.
+#
+# FedAvg only (getter cost is strategy-independent; no need to cross 6
+# strategies × 3 tiers).
+# ----------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(
+    not _RUST_AVAILABLE,
+    reason="Rust extension not built; run `maturin develop --release`",
+)
+@pytest.mark.parametrize("tier", list(TIERS.keys()))
+def test_rust_global_weights(benchmark: Any, tier: str) -> None:
+    """Measure `Orchestrator.global_weights()` in isolation.
+
+    Populates weights via one `run_round` outside the timed block, then times
+    the readout. This is the cost the numpy buffer-protocol migration targets.
+    """
+    orch = _make_rust_orchestrator(tier, FedAvg())
+    updates = _build_rust_updates(tier)
+    orch.run_round(updates)  # populate weights; not timed
+    benchmark.group = f"readout/{tier}"
+    benchmark.extra_info.update({"tier": tier, "strategy": "fed_avg", "path": "rust_getter"})
+    benchmark(lambda: orch.global_weights())
+
+
+@pytest.mark.skipif(
+    not _RUST_AVAILABLE,
+    reason="Rust extension not built; run `maturin develop --release`",
+)
+@pytest.mark.parametrize("tier", list(TIERS.keys()))
+def test_rust_run_round_plus_readout(benchmark: Any, tier: str) -> None:
+    """Measure `run_round + global_weights()` — the realistic FL round cost.
+
+    This is what a federated server actually does per round: aggregate, then
+    hand the new global weights back to the client-fanout layer. Compare to
+    `test_python_aggregate` for the honest speedup (Python's `_python_fed_avg`
+    returns the dict directly, so its aggregate and aggregate+readout costs
+    coincide).
+    """
+    orch = _make_rust_orchestrator(tier, FedAvg())
+    updates = _build_rust_updates(tier)
+    benchmark.group = f"round_plus_readout/{tier}"
+    benchmark.extra_info.update(
+        {"tier": tier, "strategy": "fed_avg", "path": "rust_full_round"}
+    )
+
+    def _full_round() -> Any:
+        orch.run_round(updates)
+        return orch.global_weights()
+
+    benchmark(_full_round)
