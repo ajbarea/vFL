@@ -210,9 +210,7 @@ def test_rust_run_round_plus_readout(benchmark: Any, tier: str) -> None:
     orch = _make_rust_orchestrator(tier, FedAvg())
     updates = _build_rust_updates(tier)
     benchmark.group = f"round_plus_readout/{tier}"
-    benchmark.extra_info.update(
-        {"tier": tier, "strategy": "fed_avg", "path": "rust_full_round"}
-    )
+    benchmark.extra_info.update({"tier": tier, "strategy": "fed_avg", "path": "rust_full_round"})
 
     def _full_round() -> Any:
         orch.run_round(updates)
