@@ -36,11 +36,9 @@ torch = [
     "torch>=2.0",
     "torchvision>=0.15",
 ]
-# Agentic surface: FastMCP server + Prefab UIs.
-# Prefab is pre-1.0 and minor versions can break — pinned exactly.
+# Agentic surface: FastMCP server exposing vFL tools over MCP.
 agent = [
     "fastmcp>=2.0",
-    "prefab-ui==0.15.0",
 ]
 all = [
     "velocity-fl[hf,torch]",
@@ -55,7 +53,7 @@ dev = [
     "pytest-cov>=5.0",
     "hypothesis>=6.100",
     "ruff>=0.9",
-    "ty>=0.0.25",
+    "ty>=0.0.25,<0.1",
     "zensical",
     "fastmcp>=2.0",
 ]

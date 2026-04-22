@@ -334,6 +334,44 @@ below are wider than they are today.
   vision-classification only — extending to NLP / tabular is a
   separate slice once the store schema has earned its keep).
 
+## Dependency hygiene
+
+Captured from the ECOSYSTEM.md audit (2026-04-22). The "obvious wins"
+(prefab-ui removal, safetensors Rust-dep removal, ty `<0.1` cap) shipped
+with that audit; the items below need a real decision before they move.
+
+- **`pyo3` 0.21 → 0.23 bump** — two minors behind current. API changes
+  between 0.21 and 0.23 touch `PyCell`, `PyTuple::new_bound`, and the
+  `Bound<'py, T>` lifetime pattern; mostly mechanical but ripples
+  through every `#[pyfunction]` and `#[pymethods]` site in
+  `vfl-core/src/lib.rs`. Batch with the numpy return-path work in
+  **Performance** (which also wants 0.21 → 0.23) to avoid doing the
+  migration twice.
+- **`rand` 0.8 → 0.9 bump** — one minor behind. 0.9 renames
+  `thread_rng` → `rng`, removes `SliceRandom::choose_multiple` in
+  favour of `IteratorRandom`, and tightens trait bounds on
+  `Distribution`. Touches the Dirichlet partitioner and the
+  `gaussian_noise` path in the kernel. Cheap when done with the pyo3
+  bump above; fiddly on its own.
+- **`[agent]` extra split — `[mcp]` + `[ui]`** — today `[agent]` holds
+  only `fastmcp`. When a UI surface (Prefab or successor) lands, it
+  goes in a separate `[ui]` extra rather than rejoining `[agent]` —
+  the two surfaces have different upgrade cadences and a user can
+  legitimately want one without the other. `[agent]` stays as a
+  meta-extra that pulls `[mcp,ui]` together, matching how `[all]`
+  works.
+- **Prefect as a hard runtime dep — revisit trigger** — today
+  `velocity.flows` imports `prefect` at module scope, making it a
+  hard baseline dep (~50 MB installed). Move to a `[prefect]` extra
+  with a conditional import in `velocity.flows` if (and only if) a
+  user asks for a non-Prefect orchestration path. Don't do it
+  pre-emptively — the extras-cascade adds real cognitive cost.
+- **Checkpoint I/O (unblocks re-adding `safetensors`)** — the Rust
+  `safetensors = "0.4"` dep was removed because nothing imports it.
+  When `velocity.checkpoint` lands (fast-secure weight serialisation
+  for warm-start and fine-tune resume), re-add the Rust dep with the
+  feature that actually uses it.
+
 ## Completed
 
 Dated one-liners for shipped roadmap-scale work. Most recent first. The
