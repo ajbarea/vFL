@@ -21,7 +21,7 @@ backed ``Enum`` in v0.1.0 — callers that previously wrote
 from __future__ import annotations
 
 from dataclasses import MISSING, dataclass, fields
-from typing import Any, Union, cast
+from typing import Any, cast
 
 
 @dataclass(frozen=True)
@@ -85,7 +85,7 @@ class MultiKrum:
     m: int | None = None
 
 
-Strategy = Union[FedAvg, FedProx, FedMedian, TrimmedMean, Krum, MultiKrum]
+Strategy = FedAvg | FedProx | FedMedian | TrimmedMean | Krum | MultiKrum
 """Union of every aggregation strategy — use in type hints and isinstance checks."""
 
 

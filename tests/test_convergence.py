@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Sequence
+from itertools import pairwise
 
 import pytest
 
@@ -216,7 +217,7 @@ def _assert_loss_trend_down(values: Sequence[float]) -> None:
     assert values[-1] < values[0] * 0.5, (
         f"loss did not roughly halve: {values[0]:.4f} -> {values[-1]:.4f}; full: {values}"
     )
-    for prev, curr in zip(values, values[1:]):
+    for prev, curr in pairwise(values):
         assert curr <= prev * 1.25, (
             f"loss regressed sharply: {prev:.4f} -> {curr:.4f}; full trajectory: {values}"
         )

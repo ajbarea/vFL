@@ -26,7 +26,7 @@ from __future__ import annotations
 import getpass
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -67,7 +67,7 @@ def _events_path(user_id: str) -> Path:
 
 def _log_event(user_id: str, action: str, file: str, summary: str) -> None:
     event = {
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "action": action,
         "file": file,
         "summary": summary,

@@ -79,7 +79,7 @@ def test_fedavg_singleton_returns_input(update: list[_core.ClientUpdate]) -> Non
     for name, values in update[0].weights.items():
         assert name in result
         assert len(result[name]) == len(values)
-        for got, want in zip(result[name], values):
+        for got, want in zip(result[name], values, strict=True):
             assert _close(got, want), f"{name}: {got} != {want}"
 
 
@@ -93,7 +93,7 @@ def test_fedavg_identical_updates_is_identity(n: int, template: list[_core.Clien
     ]
     result = _core.aggregate(copies, _core.Strategy.fed_avg())
     for name, values in template[0].weights.items():
-        for got, want in zip(result[name], values):
+        for got, want in zip(result[name], values, strict=True):
             assert _close(got, want)
 
 
@@ -129,7 +129,7 @@ def test_fedavg_preserves_layer_shape(updates: list[_core.ClientUpdate]) -> None
 def test_fedmedian_singleton_returns_input(update: list[_core.ClientUpdate]) -> None:
     result = _core.aggregate(update, _core.Strategy.fed_median())
     for name, values in update[0].weights.items():
-        for got, want in zip(result[name], values):
+        for got, want in zip(result[name], values, strict=True):
             assert _close(got, want)
 
 
@@ -145,7 +145,7 @@ def test_fedmedian_identical_updates_is_identity(
     ]
     result = _core.aggregate(copies, _core.Strategy.fed_median())
     for name, values in template[0].weights.items():
-        for got, want in zip(result[name], values):
+        for got, want in zip(result[name], values, strict=True):
             assert _close(got, want)
 
 
@@ -167,7 +167,7 @@ def test_fedmedian_resists_one_extreme_outlier(
 
     result = _core.aggregate([*honest, attacker], _core.Strategy.fed_median())
     for name, values in base_weights.items():
-        for got, want in zip(result[name], values):
+        for got, want in zip(result[name], values, strict=True):
             assert _close(got, want), f"median moved under 1 outlier: {got} vs {want}"
 
 
@@ -188,7 +188,7 @@ def test_fedprox_matches_fedavg_output(updates: list[_core.ClientUpdate]) -> Non
     fedavg = _core.aggregate(updates, _core.Strategy.fed_avg())
     fedprox = _core.aggregate(updates, _core.Strategy.fed_prox(0.01))
     for name in fedavg:
-        for a, p in zip(fedavg[name], fedprox[name]):
+        for a, p in zip(fedavg[name], fedprox[name], strict=True):
             assert _close(a, p)
 
 
@@ -328,7 +328,7 @@ def test_trimmed_mean_resists_k_outliers() -> None:
         weights={"w": [v + 1000.0 for v in base["w"]]},
     )
     result = _core.aggregate([*honest, attacker], _core.Strategy.trimmed_mean(1))
-    for got, want in zip(result["w"], base["w"]):
+    for got, want in zip(result["w"], base["w"], strict=True):
         assert _close(got, want), f"trimmed mean moved under 1 outlier: {got} vs {want}"
 
 
@@ -354,7 +354,7 @@ def test_multi_krum_m_equals_n_minus_f_is_uniform_mean() -> None:
     # Lopsided num_samples; uniform mean ignores them.
     updates = [
         _core.ClientUpdate(num_samples=samples, weights=w)
-        for samples, w in zip([1, 1, 1_000_000], weights_per_client)
+        for samples, w in zip([1, 1, 1_000_000], weights_per_client, strict=True)
     ]
     result = _core.aggregate(updates, _core.Strategy.multi_krum(0, 3))
     expected = [2.0, 4.0, 6.0]  # uniform mean of the three vectors

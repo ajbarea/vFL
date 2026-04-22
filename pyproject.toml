@@ -9,7 +9,7 @@ description = "The 'uv' of Federated Learning — high-performance, Rust-backed 
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-requires-python = ">=3.9"
+requires-python = ">=3.11,<3.14"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -21,7 +21,6 @@ dependencies = [
     "prefect>=3.0",
     "pydantic>=2.0",
     "typer>=0.12",
-    "tomli>=2.0 ; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
@@ -37,11 +36,11 @@ torch = [
     "torch>=2.0",
     "torchvision>=0.15",
 ]
-# Agentic surface: FastMCP server + Prefab UIs. Requires Python 3.10+.
-# Pinned exactly — Prefab is pre-1.0 and minor versions can break.
+# Agentic surface: FastMCP server + Prefab UIs.
+# Prefab is pre-1.0 and minor versions can break — pinned exactly.
 agent = [
-    "fastmcp>=2.0 ; python_version >= '3.10'",
-    "prefab-ui==0.15.0 ; python_version >= '3.10'",
+    "fastmcp>=2.0",
+    "prefab-ui==0.15.0",
 ]
 all = [
     "velocity-fl[hf,torch]",
@@ -50,7 +49,7 @@ all = [
 [dependency-groups]
 dev = [
     "maturin>=1.5,<2.0",
-    "pytest>=8.0",
+    "pytest>=9.0.3",
     "pytest-asyncio>=0.23",
     "pytest-benchmark>=4.0",
     "pytest-cov>=5.0",
@@ -58,7 +57,7 @@ dev = [
     "ruff>=0.9",
     "ty>=0.0.25",
     "zensical",
-    "fastmcp>=2.0 ; python_version >= '3.10'",
+    "fastmcp>=2.0",
 ]
 
 [project.scripts]
@@ -106,7 +105,7 @@ exclude_lines = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
@@ -116,8 +115,7 @@ include = ["python"]
 
 [tool.ty.analysis]
 # Torch + Hugging Face `datasets` are optional extras (`velocity-fl[torch,hf]`);
-# baseline `uv sync` prunes them. tomli is a conditional dep (python_version < '3.11');
-# not installed on newer runners. When these ARE installed, ty resolves real types.
+# baseline `uv sync` prunes them. When installed, ty resolves real types.
 allowed-unresolved-imports = [
     "torch",
     "torch.**",
@@ -125,5 +123,4 @@ allowed-unresolved-imports = [
     "torchvision.**",
     "datasets",
     "datasets.**",
-    "tomli",
 ]

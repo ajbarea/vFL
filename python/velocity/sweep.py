@@ -18,9 +18,10 @@ import platform
 import subprocess
 import sys
 import time
+import tomllib
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import fields
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -28,11 +29,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_valid
 
 from velocity import __version__
 from velocity.strategy import Strategy, parse_strategy, strategy_name
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover — exercised only on Python 3.9 / 3.10
-    import tomli as tomllib
 
 
 class AttackSpec(BaseModel):
@@ -315,7 +311,7 @@ def capture_manifest() -> dict[str, Any]:
     dirty_out = _try_run(["git", "status", "--porcelain"])
     return {
         "vfl_version": __version__,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "host": {
             "system": platform.system(),
             "release": platform.release(),
@@ -385,7 +381,7 @@ def run_sweep(
 
 def render_comparison(result: SweepResult) -> str:
     """Human-readable markdown report of a sweep."""
-    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    ts = datetime.now(UTC).isoformat(timespec="seconds")
     speedup = (
         f"{result.serial_elapsed / result.total_elapsed:.1f}x"
         if result.total_elapsed > 0
