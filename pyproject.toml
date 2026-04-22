@@ -18,6 +18,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
+    # numpy is now a hard runtime dep: the PyO3 extension returns weight
+    # dicts as numpy arrays (zero-copy buffer protocol) rather than
+    # Python float lists. Float wheels are ~15 MB so the footprint cost
+    # is negligible; the benefit is O(layers) marshaling instead of
+    # O(params). See IMPL.md and docs/benchmarks.md.
+    "numpy>=1.26",
     "prefect>=3.0",
     "pydantic>=2.0",
     "typer>=0.12",

@@ -9,8 +9,22 @@ pub mod strategy;
 
 use std::collections::HashMap;
 
+use numpy::{IntoPyArray, PyArray1};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
+
+// Zero-copy f32 layer-dict return: shares the underlying Vec<f32> buffer
+// with numpy via the buffer protocol. O(layers) allocations instead of
+// O(params) PyFloats. Used by every weight-returning entrypoint below.
+fn weights_into_pydict(
+    py: Python<'_>,
+    weights: HashMap<String, Vec<f32>>,
+) -> HashMap<String, Py<PyArray1<f32>>> {
+    weights
+        .into_iter()
+        .map(|(k, v)| (k, v.into_pyarray_bound(py).unbind()))
+        .collect()
+}
 
 // ---------------------------------------------------------------------------
 // Strategy
@@ -102,8 +116,8 @@ impl PyClientUpdate {
     }
 
     #[getter]
-    fn weights(&self) -> HashMap<String, Vec<f32>> {
-        self.0.weights.clone()
+    fn weights(&self, py: Python<'_>) -> HashMap<String, Py<PyArray1<f32>>> {
+        weights_into_pydict(py, self.0.weights.clone())
     }
 }
 
@@ -272,9 +286,13 @@ impl PyOrchestrator {
         result.map(PyRoundSummary).map_err(PyRuntimeError::new_err)
     }
 
-    /// Current global model weights as a Python dict.
-    fn global_weights(&self) -> HashMap<String, Vec<f32>> {
-        self.0.global_weights.clone()
+    /// Current global model weights as a Python dict of numpy arrays.
+    ///
+    /// Each layer returns as a ``numpy.ndarray[float32]`` sharing the Rust
+    /// buffer via the numpy buffer protocol — no per-parameter PyFloat
+    /// allocation, O(layers) cost instead of O(params).
+    fn global_weights(&self, py: Python<'_>) -> HashMap<String, Py<PyArray1<f32>>> {
+        weights_into_pydict(py, self.0.global_weights.clone())
     }
 
     /// Overwrite the global model weights.
@@ -319,12 +337,13 @@ impl PyOrchestrator {
 ///     Dict mapping layer names to aggregated weight lists.
 #[pyfunction]
 fn aggregate(
+    py: Python<'_>,
     updates: Vec<PyRef<PyClientUpdate>>,
     strategy: &PyStrategy,
-) -> PyResult<HashMap<String, Vec<f32>>> {
+) -> PyResult<HashMap<String, Py<PyArray1<f32>>>> {
     let refs: Vec<&strategy::ClientUpdate> = updates.iter().map(|u| &u.0).collect();
     crate::strategy::aggregate(&refs, &strategy.0)
-        .map(|agg| agg.weights)
+        .map(|agg| weights_into_pydict(py, agg.weights))
         .map_err(PyRuntimeError::new_err)
 }
 
@@ -338,13 +357,14 @@ fn aggregate(
 ///     JSON-encoded :class:`AttackResult`.
 #[pyfunction]
 fn apply_gaussian_noise(
+    py: Python<'_>,
     mut weights: HashMap<String, Vec<f32>>,
     std_dev: f64,
-) -> PyResult<(HashMap<String, Vec<f32>>, String)> {
+) -> PyResult<(HashMap<String, Py<PyArray1<f32>>>, String)> {
     let result = security::simulate_gaussian_noise(&mut weights, std_dev);
     let json =
         serde_json::to_string(&result).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-    Ok((weights, json))
+    Ok((weights_into_pydict(py, weights), json))
 }
 
 // ---------------------------------------------------------------------------

@@ -7,6 +7,16 @@ surface in sync with `vfl-core/src/lib.rs`.
 
 from typing import Any
 
+import numpy as np
+import numpy.typing as npt
+
+# Weight-dict return type for every aggregation entrypoint. The Rust layer
+# returns numpy arrays that share the Rust `Vec<f32>` buffer via the numpy
+# buffer protocol — no PyFloat-per-parameter marshaling. Input dicts still
+# accept `list[float]` (pyo3 auto-converts) for construction ergonomics.
+WeightDict = dict[str, npt.NDArray[np.float32]]
+InputWeightDict = dict[str, list[float]]
+
 class Strategy:
     @staticmethod
     def fed_avg() -> Strategy: ...
@@ -23,8 +33,8 @@ class Strategy:
 
 class ClientUpdate:
     num_samples: int
-    weights: dict[str, list[float]]
-    def __init__(self, num_samples: int, weights: dict[str, list[float]]) -> None: ...
+    weights: WeightDict
+    def __init__(self, num_samples: int, weights: InputWeightDict) -> None: ...
 
 class RoundSummary:
     round: int
@@ -56,14 +66,14 @@ class Orchestrator:
         updates: list[ClientUpdate],
         reported_loss: float | None = ...,
     ) -> RoundSummary: ...
-    def global_weights(self) -> dict[str, list[float]]: ...
-    def set_global_weights(self, weights: dict[str, list[float]]) -> None: ...
+    def global_weights(self) -> WeightDict: ...
+    def set_global_weights(self, weights: InputWeightDict) -> None: ...
     def history_json(self) -> str: ...
 
-def aggregate(updates: list[ClientUpdate], strategy: Strategy) -> dict[str, list[float]]: ...
+def aggregate(updates: list[ClientUpdate], strategy: Strategy) -> WeightDict: ...
 def apply_gaussian_noise(
-    weights: dict[str, list[float]], std_dev: float
-) -> tuple[dict[str, list[float]], str]: ...
+    weights: InputWeightDict, std_dev: float
+) -> tuple[WeightDict, str]: ...
 
 # Catch-all for anything else exposed by the compiled module.
 def __getattr__(name: str) -> Any: ...

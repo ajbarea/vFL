@@ -124,19 +124,54 @@ Robustness buys a ~14× cost factor over non-robust FedAvg at this scale;
 the matched Python oracle in `tests/strategy_reference.py` confirms the
 kernel is correct, it is not a perf bug.
 
+### Realistic round cost (run_round + readout)
+
+The `run_round` numbers above measure aggregation in isolation. A real
+FL server always reads global weights back after aggregating, to
+distribute them to clients next round — that call goes through
+`Orchestrator.global_weights()`. Before the numpy buffer-protocol
+migration, that getter returned `dict[str, list[float]]` with one
+`PyFloat` allocation per parameter, and the cost was hidden outside
+the `run_round`-only table above.
+
+**Before numpy migration** (loaded system, 2026-04-22, nephew running
+Roblox; directional — re-measure on idle before quoting externally):
+
+| tier | `global_weights()` only | full round (`run_round + readout`) | implied `run_round` alone | getter share |
+| --- | --- | --- | --- | --- |
+| tiny (~1K params) | 11.3 µs | 15.9 µs | ~4.6 µs | 71% |
+| medium (~1M) | 35.3 ms | 39.3 ms | ~4.0 ms | 90% |
+| large (~10M) | 425 ms | 459 ms | ~34 ms | **93%** |
+
+**After numpy migration** (same box, same hour, same Roblox):
+
+| tier | `global_weights()` only | full round (`run_round + readout`) | getter speedup | round speedup |
+| --- | --- | --- | --- | --- |
+| tiny | 1.88 µs | 6.0 µs | 6× | 2.6× |
+| medium | 129 µs | 5.6 ms | **273×** | 7× |
+| large | 6.6 ms | 56.3 ms | **64×** | **8×** |
+
+At `large`, the getter dropped from 425 ms to 6.6 ms and the realistic
+round from 459 ms to 56.3 ms. `.global_weights()` is now ~12% of the
+full round (6.6 / 56.3) instead of 93% — the Rust aggregation kernel is
+once again the bottleneck, which is what the perf story actually claims.
+
+**Realistic-round speedup vs Python FedAvg at `large`**: 5.12 s / 56.3 ms
+= **91×**. Matches the `run_round`-alone table (97×) because marshaling
+overhead is essentially gone. The table above is now an honest
+apples-to-apples read, not a sliver of the user-facing cost.
+
 ## Findings worth calling out
 
-**The Python return path is the next obvious lever.** `Orchestrator.run_round`
-still marshals `HashMap<String, Vec<f32>>` → Python `dict[str,
-list[float]]` on return, allocating one `PyFloat` per parameter. The
-input side is already zero-copy on the no-attack path (the PyO3 wrapper
-passes `&ClientUpdate` slices to the kernel); the return side is the
-next lever — a `numpy.ndarray` / buffer-protocol return would share the
-underlying f32 buffer with zero copies. Today's Rust-FedAvg-large is
-53 ms through the Python surface vs ~121 ms in raw divan from the prior
-snapshot — the same-day raw divan number isn't measured, but the
-cross-sample directional gap is what the buffer-protocol PR is
-projected to close.
+**The Python return path has been closed.** `Orchestrator.global_weights()`,
+`ClientUpdate.weights`, free `aggregate`, and `apply_gaussian_noise` now
+return `dict[str, numpy.ndarray[float32]]` — the underlying `Vec<f32>`
+buffer is shared with numpy via the buffer protocol, zero-copy. One
+ndarray wrapper per layer instead of one PyFloat per parameter; O(layers)
+instead of O(params). See the "Realistic round cost" subsection above for
+the measured delta. Input sides (`__init__`, `set_global_weights`) stay
+on `HashMap<String, Vec<f32>>` — the no-attack input path was already
+zero-copy.
 
 **FedProx is not server-side distinct from FedAvg.** In
 `vfl-core/src/strategy.rs`, `FedProx` dispatches to the same aggregation

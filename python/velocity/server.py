@@ -6,6 +6,9 @@ import json
 import logging
 from typing import Any
 
+import numpy as np
+import numpy.typing as npt
+
 from velocity.attacks import VALID_ATTACKS
 from velocity.strategy import (
     FedAvg,
@@ -205,8 +208,13 @@ class VelocityServer:
         logger.info("Attack registered: %s (%s)", attack_type, log_detail)
 
     @property
-    def global_weights(self) -> dict[str, list[float]]:
-        """Current global model weights (after the last completed round)."""
+    def global_weights(self) -> dict[str, npt.NDArray[np.float32]]:
+        """Current global model weights (after the last completed round).
+
+        Returns one ``numpy.ndarray[float32]`` per layer — the Rust extension
+        shares the underlying buffer via the numpy buffer protocol (zero-copy,
+        O(layers)); the Python fallback converts its internal lists on read.
+        """
         if self._orchestrator is None:
             return {}
         return self._orchestrator.global_weights()
@@ -324,8 +332,12 @@ class _PurePythonOrchestrator:
     def register_attack(self, **kwargs: Any) -> None:
         self._pending_attacks.append(kwargs)
 
-    def global_weights(self) -> dict[str, list[float]]:
-        return self.global_weights_data
+    def global_weights(self) -> dict[str, npt.NDArray[np.float32]]:
+        # Match the Rust extension's return shape: numpy arrays, not lists.
+        # Internal storage stays as lists (simpler aggregation loop);
+        # conversion happens once per read, which is fine in the fallback
+        # path (Rust-free docs CI envs — not a perf-critical surface).
+        return {k: np.asarray(v, dtype=np.float32) for k, v in self.global_weights_data.items()}
 
     def history_json(self) -> str:
         return json.dumps(self._history)

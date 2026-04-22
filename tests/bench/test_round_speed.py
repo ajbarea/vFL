@@ -170,7 +170,7 @@ def test_python_aggregate(benchmark: Any, tier: str) -> None:
 #   apples-to-apples speedup number.
 #
 # FedAvg only (getter cost is strategy-independent; no need to cross 6
-# strategies × 3 tiers).
+# strategies x 3 tiers).
 # ----------------------------------------------------------------------------
 
 
