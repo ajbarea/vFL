@@ -25,6 +25,7 @@ extra_javascript = ["javascripts/reveal.js"]
 [project.theme]
 name = "material"
 language = "en"
+custom_dir = "overrides"
 
 features = [
     # Announcement bar
