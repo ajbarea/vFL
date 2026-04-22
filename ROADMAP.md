@@ -378,6 +378,15 @@ Dated one-liners for shipped roadmap-scale work. Most recent first. The
 commit history and `docs/benchmarks.md` / `docs/convergence.md` are the
 authoritative record; this log is the human index into them.
 
+- **2026-04-22** — Zero-copy numpy buffer-protocol return path across the
+  PyO3 boundary. `ClientUpdate.weights`, `Orchestrator.global_weights`,
+  free `aggregate`, and `apply_gaussian_noise` now return
+  `dict[str, numpy.ndarray[float32]]` sharing the Rust `Vec<f32>` buffer.
+  At `large` tier (10M params, 16 layers): getter dropped 425 ms → 6.6 ms
+  (64×); realistic round cost 459 ms → 56.3 ms (8×); realistic-round
+  speedup vs Python FedAvg 11× → 91× (now matches the advertised
+  `run_round`-only 97×). Bumped pyo3 + numpy 0.21 → 0.23 alongside.
+  Before/after tables in `docs/benchmarks.md`.
 - **2026-04-20** — Trimmed Mean coordinate-wise Byzantine-robust aggregator
   (`Strategy::TrimmedMean { k }`) shipped with bench + Python-reference
   rows in `docs/benchmarks.md`. Dimension-independent k-partial sort per
