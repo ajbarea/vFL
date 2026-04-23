@@ -119,3 +119,12 @@ fn multi_krum(bencher: Bencher, tier: &str) {
         aggregate(black_box(&updates), &Strategy::MultiKrum { f: 1, m: None }).unwrap()
     });
 }
+
+// n=10, f=1 satisfies Bulyan's `n >= 4f + 3 = 7` bound. Default m = n - 2f = 8.
+#[divan::bench(args = TIERS)]
+fn bulyan(bencher: Bencher, tier: &str) {
+    let updates = make_updates(tier);
+    bencher.bench_local(|| {
+        aggregate(black_box(&updates), &Strategy::Bulyan { f: 1, m: None }).unwrap()
+    });
+}

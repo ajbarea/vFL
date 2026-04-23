@@ -82,6 +82,16 @@ impl PyStrategy {
         PyStrategy(strategy::Strategy::MultiKrum { f, m })
     }
 
+    /// Bulyan (El Mhamdi et al. 2018, Algorithm 2) — Multi-Krum selection
+    /// composed with coordinate-wise trimmed mean over the ``m`` survivors.
+    /// ``m=None`` resolves to ``n - 2*f`` (the paper's default). Requires
+    /// ``n >= 4*f + 3`` and ``2*f + 1 <= m <= n - 2*f``.
+    #[staticmethod]
+    #[pyo3(signature = (f, m=None))]
+    fn bulyan(f: usize, m: Option<usize>) -> Self {
+        PyStrategy(strategy::Strategy::Bulyan { f, m })
+    }
+
     fn __repr__(&self) -> String {
         format!("{:?}", self.0)
     }

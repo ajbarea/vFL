@@ -10,28 +10,34 @@ execution lives here.
 
 ## Last shipped
 
-**numpy buffer-protocol return path** (2026-04-22). Commits
-`bbeb705` (bench probe), `349c698` (numpy return types), `e4c5ade`
-(pyo3/numpy 0.21 → 0.23). See [ROADMAP → Completed](ROADMAP.md#completed)
-for the dated summary and `docs/benchmarks.md` for the measured before/after.
+**Bulyan aggregator** (2026-04-23). `Strategy::Bulyan { f, m }` composes
+Multi-Krum selection with coordinate-wise trimmed mean over the `m = n - 2f`
+survivors. Zero new algorithmic math: refactored `krum_select` to expose
+`krum_select_indices` so Bulyan and Multi-Krum share the Phase-1 kernel;
+Phase 2 feeds the subset into the existing trimmed-mean kernel with `k = f`.
+Validates Bulyan's `n >= 4f + 3` breakdown bound. Python `Bulyan` dataclass
+slots into the existing Strategy union; `_core.Strategy.bulyan(f, m=None)`
+matches the multi_krum binding shape. Numpy oracle in
+`tests/strategy_reference.py` composes `multi_krum_reference` +
+`trimmed_mean_reference` so Hypothesis-driven parity tests cover both
+phases end-to-end. Bench rows at all three tiers added to
+`docs/benchmarks.md` (1.54 s at `large`; MultiKrum + TrimmedMean minus the
+`n → m` subset discount).
 
-One DoD item deferred: **no `CHANGELOG.md` entry for the `.append()`-on-weight-value
-break under `0.1.0-alpha`**, because no `CHANGELOG.md` file exists in this repo
-yet. Creating one is a repo-wide convention decision, not a per-PR decision —
-flag for the next session if breaking-change tracking starts to matter.
+Commit refs TBD — populated after `/aj-auto-commit` merges.
 
 ## Next up (queued, not active)
 
 Per ROADMAP the natural next sessions are:
 
-1. **Bulyan** — composes `MultiKrum` + `TrimmedMean`. Both kernels ship.
-   Thin orchestration layer; see
-   [ROADMAP → Aggregation strategies](ROADMAP.md#aggregation-strategies).
-2. **`rand` 0.8 → 0.9 bump** — deferred from the pyo3 PR to isolate
+1. **`rand` 0.8 → 0.9 bump** — deferred from the pyo3 PR to isolate
    attribution. Touches `gaussian_noise` and the Dirichlet partitioner;
    mechanical.
-3. **`[torch-cpu]` CI extra** — promotes convergence coverage from
+2. **`[torch-cpu]` CI extra** — promotes convergence coverage from
    nightly to per-PR; see [ROADMAP → CI](ROADMAP.md#ci).
+3. **Geometric median / RFA** — Weiszfeld's algorithm, ~50% Byzantine
+   breakdown. Natural next robust aggregator now that Bulyan ships; see
+   [ROADMAP → Aggregation strategies](ROADMAP.md#aggregation-strategies).
 4. **CodSpeed + crowd-scale (50–100 clients) bench tier** — the
    noise-floor upgrade that makes single-digit-percent regression
    detection meaningful on the WSL2 box; see

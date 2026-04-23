@@ -66,6 +66,7 @@ kernel only, measured against pre-built `Vec<f32>` client updates.
 | TrimmedMean(k=1) | 90 µs | 105 ms | 1.06 s |
 | Krum(f=1) | 36 µs | 92.7 ms | 990 ms |
 | MultiKrum(f=1) | 43 µs | 97.6 ms | 1.01 s |
+| Bulyan(f=1) | 93 µs | 159 ms | 1.70 s |
 
 FedAvg on a 10M-parameter model with 10 clients aggregates in ~121 ms.
 FedAvg accumulates in f64 and downcasts to f32 at the end to bound
@@ -82,11 +83,11 @@ This is the number users actually feel. `_rust.Orchestrator.run_round`
 with pre-built client updates, crossing the PyO3 boundary once per round,
 compared against a pure-Python FedAvg on the same inputs.
 
-| tier | Rust FedAvg | Rust FedProx | Rust FedMedian | Rust TrimmedMean(k=1) | Rust Krum(f=1) | Rust MultiKrum(f=1) | Python FedAvg | **Rust FedAvg speedup vs Python FedAvg** |
-|---|---|---|---|---|---|---|---|---|
-| tiny (~1K) | 4.4 µs | 4.7 µs | 84 µs | 88 µs | 39 µs | 41 µs | 417 µs | **95×** |
-| medium (~1M) | 4.4 ms | 4.4 ms | 100 ms | 101 ms | 58 ms | 59 ms | 512 ms | **117×** |
-| large (~10M) | 53 ms | 81 ms | 956 ms | 1.04 s | 729 ms | 818 ms | 5.12 s | **97×** |
+| tier | Rust FedAvg | Rust FedProx | Rust FedMedian | Rust TrimmedMean(k=1) | Rust Krum(f=1) | Rust MultiKrum(f=1) | Rust Bulyan(f=1) | Python FedAvg | **Rust FedAvg speedup vs Python FedAvg** |
+|---|---|---|---|---|---|---|---|---|---|
+| tiny (~1K) | 4.4 µs | 4.7 µs | 84 µs | 88 µs | 39 µs | 41 µs | 99 µs | 417 µs | **95×** |
+| medium (~1M) | 4.4 ms | 4.4 ms | 100 ms | 101 ms | 58 ms | 59 ms | 154 ms | 512 ms | **117×** |
+| large (~10M) | 53 ms | 81 ms | 956 ms | 1.04 s | 729 ms | 818 ms | 1.54 s | 5.12 s | **97×** |
 
 Pure-Python FedAvg at the `large` tier costs ~5.1 s per round on this
 snapshot. The full `tests/bench/` suite takes ~7 min on this box at
@@ -123,6 +124,18 @@ honest: Krum is O(n²·d), FedAvg is O(n·d). The `f=1` Krum kernel builds a
 Robustness buys a ~14× cost factor over non-robust FedAvg at this scale;
 the matched Python oracle in `tests/strategy_reference.py` confirms the
 kernel is correct, it is not a perf bug.
+
+**Bulyan composes the two slowest robust kernels** and lands at their
+sum minus a subset discount: Phase 1 runs Multi-Krum over all `n`
+clients (818 ms at `large`), Phase 2 runs a coordinate-wise trimmed
+mean over the `m = n - 2f = 8` survivors (cheaper than the `n=10`
+TrimmedMean row because the per-coord partition shrinks from 10 to 8).
+Observed 1.54 s at `large` vs MultiKrum + TrimmedMean ≈ 1.86 s on the
+same snapshot — the subset discount is real. Bulyan pays a 29× cost
+factor over Rust FedAvg but gives the strongest distance-based
+Byzantine guarantee in the suite (breakdown at `n - 4f`). The oracle
+in `tests/strategy_reference.py` composes `multi_krum_reference` with
+`trimmed_mean_reference` end-to-end and Hypothesis tests pin parity.
 
 ### Realistic round cost (run_round + readout)
 
