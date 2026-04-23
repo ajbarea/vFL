@@ -75,7 +75,7 @@ jobs:
           files: coverage.xml
           flags: unit
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           disable_search: true
 
       - name: Upload test results to Codecov
