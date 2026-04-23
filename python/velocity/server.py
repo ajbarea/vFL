@@ -11,6 +11,7 @@ import numpy.typing as npt
 
 from velocity.attacks import VALID_ATTACKS
 from velocity.strategy import (
+    Bulyan,
     FedAvg,
     FedMedian,
     FedProx,
@@ -271,6 +272,8 @@ class VelocityServer:
             return _rust.Strategy.krum(s.f)
         if isinstance(s, MultiKrum):
             return _rust.Strategy.multi_krum(s.f, s.m)
+        if isinstance(s, Bulyan):
+            return _rust.Strategy.bulyan(s.f, s.m)
         raise ValueError(f"Unsupported strategy: {s!r}")
 
     def _run_single_round(self) -> dict[str, Any]:

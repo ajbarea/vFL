@@ -31,6 +31,16 @@ pub enum Strategy {
         f: usize,
         m: Option<usize>,
     },
+    /// Bulyan (El Mhamdi et al. 2018, Algorithm 2) — composes Multi-Krum with
+    /// a coordinate-wise trimmed mean. Phase 1 selects `m` candidates via the
+    /// Multi-Krum scoring rule; Phase 2 drops the `f` largest and `f` smallest
+    /// per coordinate among the survivors and uniform-means the remaining
+    /// `β = m - 2f`. `m = None` resolves to `n - 2f` (the paper's default).
+    /// Requires `n >= 4*f + 3` and `2*f + 1 <= m <= n - 2*f`.
+    Bulyan {
+        f: usize,
+        m: Option<usize>,
+    },
 }
 
 /// A model update from a single client, represented as named weight tensors.
@@ -83,6 +93,7 @@ pub fn aggregate<U: Borrow<ClientUpdate>>(
         }),
         Strategy::Krum { f } => krum_select(updates, *f, Some(1)),
         Strategy::MultiKrum { f, m } => krum_select(updates, *f, *m),
+        Strategy::Bulyan { f, m } => bulyan(updates, *f, *m),
     }
 }
 
@@ -277,21 +288,24 @@ fn trimmed_mean<U: Borrow<ClientUpdate>>(
     Ok(global)
 }
 
-/// Krum / Multi-Krum kernel.
+/// Krum / Multi-Krum selection kernel — returns the picked client indices.
 ///
 /// Flattens each client's weights into a shared coordinate space (layer order
 /// taken from `updates[0]`), computes the pairwise squared-Euclidean distance
 /// matrix, scores each client by the sum of its `n - f - 2` smallest distances
-/// to other clients, then selects the `m` smallest-score clients and averages
-/// them with uniform weights (not sample-weighted — matches El Mhamdi et al.).
+/// to other clients, and returns the `m` lowest-scoring indices in ascending
+/// score order (ties broken by original index via stable sort).
 ///
-/// `m = Some(1)` reproduces Blanchard's original Krum. `m = None` resolves to
-/// `n - f` at call time ("largest non-Byzantine group" interpretation).
-fn krum_select<U: Borrow<ClientUpdate>>(
+/// Pure selection: no averaging. `krum_select` composes this with a uniform
+/// mean; `bulyan` composes it with a coordinate-wise trimmed mean.
+///
+/// `m = Some(1)` reproduces Blanchard's original Krum winner. `m = None`
+/// resolves to `n - f` ("largest non-Byzantine group").
+fn krum_select_indices<U: Borrow<ClientUpdate>>(
     updates: &[U],
     f: usize,
     m: Option<usize>,
-) -> Result<Aggregation, String> {
+) -> Result<Vec<usize>, String> {
     let n = updates.len();
 
     // Blanchard's breakdown bound: needs n - f - 2 >= 1 honest neighbours to
@@ -380,12 +394,28 @@ fn krum_select<U: Borrow<ClientUpdate>>(
     // Ascending sort — smallest score is the Krum winner. Stable on ties so
     // equal-score clients are selected in index order (makes tests deterministic).
     scores.sort_by(|a, b| cmp_f64(&a.1, &b.1));
-    let selected_client_ids: Vec<usize> = scores[..m].iter().map(|&(i, _)| i).collect();
+    Ok(scores[..m].iter().map(|&(i, _)| i).collect())
+}
 
-    // Uniform average over the selected clients, layer by layer.
-    let mut weights: HashMap<String, Vec<f32>> = HashMap::with_capacity(layer_names.len());
-    let inv_m = 1.0f64 / m as f64;
-    for (name, &size) in layer_names.iter().zip(&layer_sizes) {
+/// Krum / Multi-Krum kernel — picks indices via `krum_select_indices` and
+/// returns their uniform (not sample-weighted) average, matching El Mhamdi
+/// et al.'s formulation.
+fn krum_select<U: Borrow<ClientUpdate>>(
+    updates: &[U],
+    f: usize,
+    m: Option<usize>,
+) -> Result<Aggregation, String> {
+    let selected_client_ids = krum_select_indices(updates, f, m)?;
+    let m_val = selected_client_ids.len();
+
+    // Uniform average over the selected clients, layer by layer. Layer
+    // presence/size was validated inside `krum_select_indices` during
+    // flattening, so `u.weights[name]` is safe.
+    let first = updates[0].borrow();
+    let mut weights: HashMap<String, Vec<f32>> = HashMap::with_capacity(first.weights.len());
+    let inv_m = 1.0f64 / m_val as f64;
+    for (name, first_vec) in first.weights.iter() {
+        let size = first_vec.len();
         let mut agg = vec![0.0f64; size];
         for &idx in &selected_client_ids {
             let u = updates[idx].borrow();
@@ -400,6 +430,47 @@ fn krum_select<U: Borrow<ClientUpdate>>(
     Ok(Aggregation {
         weights,
         selected_client_ids,
+    })
+}
+
+/// Bulyan aggregator (El Mhamdi et al. 2018, Algorithm 2).
+///
+/// Phase 1 — reuse the Multi-Krum scoring rule to pick `m` survivor indices.
+/// Phase 2 — pass those survivors into the coordinate-wise trimmed-mean kernel
+/// with `k = f`, keeping `β = m - 2f` values per coordinate and uniform-meaning
+/// them. Zero new math: pure orchestration over existing kernels.
+///
+/// Default `m = n - 2f` per the paper. Validates the Bulyan-specific bound
+/// `n >= 4*f + 3` before dispatching — strictly tighter than Multi-Krum's
+/// `n >= 2*f + 3`, so the inner `krum_select_indices` check always passes.
+fn bulyan<U: Borrow<ClientUpdate>>(
+    updates: &[U],
+    f: usize,
+    m: Option<usize>,
+) -> Result<Aggregation, String> {
+    let n = updates.len();
+
+    if n < 4 * f + 3 {
+        return Err(format!("Bulyan requires n >= 4*f + 3; got n={n}, f={f}"));
+    }
+
+    let m_val = m.unwrap_or(n - 2 * f);
+    if m_val < 2 * f + 1 || m_val > n - 2 * f {
+        return Err(format!(
+            "Bulyan requires 2*f + 1 <= m <= n - 2*f; got m={m_val}, n={n}, f={f}"
+        ));
+    }
+
+    let selected = krum_select_indices(updates, f, Some(m_val))?;
+
+    // `&[&ClientUpdate]` satisfies `U: Borrow<ClientUpdate>` via the blanket
+    // `impl<T: ?Sized> Borrow<T> for &T` — no cloning of weight buffers.
+    let subset: Vec<&ClientUpdate> = selected.iter().map(|&i| updates[i].borrow()).collect();
+    let weights = trimmed_mean(&subset, f)?;
+
+    Ok(Aggregation {
+        weights,
+        selected_client_ids: selected,
     })
 }
 
@@ -690,5 +761,128 @@ mod tests {
         let u2 = make_update(1, &[("a", vec![1.0])]); // missing "b"
         let result = aggregate(&[u0, u1, u2], &Strategy::Krum { f: 0 });
         assert!(result.is_err());
+    }
+
+    // ----- Bulyan -----
+
+    #[test]
+    fn bulyan_matches_manual_calculation_on_fixed_fixture() {
+        // n=7, f=1, m=None → m = n-2f = 5, β = m-2f = 3.
+        // Honest clients at 1..=6, Byzantine at 100.
+        //   Phase 1 (Multi-Krum, k_terms = n-f-2 = 4): the single outlier
+        //   scores astronomically high, c0 and c5 score 30 each (furthest
+        //   honest), c1/c4 score 15, c2/c3 score 10. Top 5 = {c0..c4}.
+        //   Phase 2: sorted subset = [1,2,3,4,5], drop f=1 from each end,
+        //   kept = [2,3,4], uniform mean = 3.0.
+        let clients: Vec<ClientUpdate> = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 100.0]
+            .iter()
+            .map(|&v| make_update(1, &[("w", vec![v])]))
+            .collect();
+        let result = aggregate(&clients, &Strategy::Bulyan { f: 1, m: None }).unwrap();
+        assert_eq!(result.selected_client_ids.len(), 5);
+        let mut selected_sorted = result.selected_client_ids.clone();
+        selected_sorted.sort();
+        assert_eq!(selected_sorted, vec![0, 1, 2, 3, 4]);
+        assert!(
+            (result.weights["w"][0] - 3.0).abs() < 1e-5,
+            "got {}",
+            result.weights["w"][0]
+        );
+    }
+
+    #[test]
+    fn bulyan_rejects_insufficient_clients() {
+        // n=6, f=1 → needs n >= 4*1+3 = 7. Should error.
+        let clients: Vec<ClientUpdate> = (0..6)
+            .map(|i| make_update(1, &[("w", vec![i as f32])]))
+            .collect();
+        let result = aggregate(&clients, &Strategy::Bulyan { f: 1, m: None });
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().contains("n >= 4*f + 3"),
+            "unexpected error message shape"
+        );
+    }
+
+    #[test]
+    fn bulyan_rejects_bad_m() {
+        // n=7, f=1 → valid m range is [2*1+1, 7-2*1] = [3, 5].
+        let clients: Vec<ClientUpdate> = (0..7)
+            .map(|i| make_update(1, &[("w", vec![i as f32])]))
+            .collect();
+        // m=2 below 2f+1.
+        let too_small = aggregate(&clients, &Strategy::Bulyan { f: 1, m: Some(2) });
+        assert!(too_small.is_err());
+        // m=6 above n-2f.
+        let too_large = aggregate(&clients, &Strategy::Bulyan { f: 1, m: Some(6) });
+        assert!(too_large.is_err());
+    }
+
+    #[test]
+    fn bulyan_default_m_equals_explicit_n_minus_2f() {
+        let clients: Vec<ClientUpdate> = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 100.0]
+            .iter()
+            .map(|&v| make_update(1, &[("w", vec![v])]))
+            .collect();
+        let default_m = aggregate(&clients, &Strategy::Bulyan { f: 1, m: None }).unwrap();
+        let explicit_m = aggregate(
+            &clients,
+            &Strategy::Bulyan {
+                f: 1,
+                m: Some(5), // n-2f
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            default_m.selected_client_ids,
+            explicit_m.selected_client_ids
+        );
+        assert!((default_m.weights["w"][0] - explicit_m.weights["w"][0]).abs() < 1e-6);
+    }
+
+    #[test]
+    fn bulyan_missing_layer_returns_error() {
+        let mut clients: Vec<ClientUpdate> = (0..6)
+            .map(|_| make_update(1, &[("a", vec![1.0]), ("b", vec![1.0])]))
+            .collect();
+        clients.push(make_update(1, &[("a", vec![1.0])])); // missing "b"
+        let result = aggregate(&clients, &Strategy::Bulyan { f: 1, m: None });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn bulyan_excludes_byzantine_outlier() {
+        // n=7, f=1 → needs n >= 4f+3 = 7 ✓. Default m = n-2f = 5.
+        //   Phase 1 (Multi-Krum): k_terms = n-f-2 = 4, selects 5 of 7 by lowest
+        //                         score — rejects the two farthest from the cluster.
+        //   Phase 2 (TrimmedMean): k = f = 1, drops min+max per coord,
+        //                          uniform-means the remaining β = m-2f = 3.
+        // 6 honest clients around [2,2], 1 Byzantine at [100,100].
+        // The Byzantine scores highest; a honest client also gets dropped by the
+        // m = n-2f = 5 cut. Trimmed mean on 5 near-[2,2] values is near [2,2].
+        let mut clients: Vec<ClientUpdate> = [2.0f32, 2.05, 1.95, 2.1, 1.9, 2.0]
+            .iter()
+            .map(|&v| make_update(1, &[("w", vec![v, v])]))
+            .collect();
+        clients.push(make_update(1, &[("w", vec![100.0, 100.0])]));
+        let result = aggregate(&clients, &Strategy::Bulyan { f: 1, m: None }).unwrap();
+        // Byzantine (index 6) is never in the selection.
+        assert!(
+            !result.selected_client_ids.contains(&6),
+            "Bulyan picked the Byzantine outlier: {:?}",
+            result.selected_client_ids
+        );
+        assert_eq!(result.selected_client_ids.len(), 5);
+        let w = &result.weights["w"];
+        assert!(
+            (w[0] - 2.0).abs() < 0.1,
+            "coord 0 drifted from honest cluster: got {}",
+            w[0]
+        );
+        assert!(
+            (w[1] - 2.0).abs() < 0.1,
+            "coord 1 drifted from honest cluster: got {}",
+            w[1]
+        );
     }
 }

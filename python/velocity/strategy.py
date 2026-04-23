@@ -85,7 +85,22 @@ class MultiKrum:
     m: int | None = None
 
 
-Strategy = FedAvg | FedProx | FedMedian | TrimmedMean | Krum | MultiKrum
+@dataclass(frozen=True)
+class Bulyan:
+    """Bulyan (El Mhamdi et al. 2018) — Multi-Krum → coordinate-wise trimmed mean.
+
+    Phase 1 picks ``m`` candidates by the Multi-Krum scoring rule; Phase 2 drops
+    the ``f`` largest and ``f`` smallest values per coordinate among those
+    survivors and uniform-means the remaining ``β = m - 2f``. ``m = None``
+    resolves to ``n - 2*f`` at aggregation time (the paper's default).
+    Requires ``n >= 4*f + 3`` and ``2*f + 1 <= m <= n - 2*f``.
+    """
+
+    f: int
+    m: int | None = None
+
+
+Strategy = FedAvg | FedProx | FedMedian | TrimmedMean | Krum | MultiKrum | Bulyan
 """Union of every aggregation strategy — use in type hints and isinstance checks."""
 
 
@@ -96,6 +111,7 @@ ALL_STRATEGIES: tuple[type[Strategy], ...] = (
     TrimmedMean,
     Krum,
     MultiKrum,
+    Bulyan,
 )
 """Every concrete strategy class, in stable display order."""
 

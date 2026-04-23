@@ -1,4 +1,4 @@
-"""NumPy reference implementations of Krum, Multi-Krum, and Trimmed Mean.
+"""NumPy reference implementations of Krum, Multi-Krum, Trimmed Mean, Bulyan.
 
 These are independent oracles we compare the Rust kernel against. Kept in
 `tests/` so they never ship in the installed package — they're test fixtures,
@@ -10,8 +10,10 @@ Algorithms match:
                  Learning in Byzantium"
   Trimmed Mean — Yin et al. 2018, "Byzantine-Robust Distributed Learning"
                  (arXiv:1803.01498)
+  Bulyan       — El Mhamdi et al. 2018, Algorithm 2 (Multi-Krum → trimmed mean)
 
 Krum / Multi-Krum require `n >= 2*f + 3`. Trimmed Mean requires `2*k < n`.
+Bulyan requires `n >= 4*f + 3` and `2*f + 1 <= m <= n - 2*f`.
 """
 
 from __future__ import annotations
@@ -146,3 +148,35 @@ def trimmed_mean_reference(
         kept = stacked[k : n - k] if k > 0 else stacked
         weights[name] = kept.mean(axis=0).astype(np.float32)
     return weights
+
+
+def bulyan_reference(
+    updates: Sequence[ClientWeights],
+    f: int,
+    m: int | None = None,
+) -> tuple[dict[str, np.ndarray], list[int]]:
+    """NumPy Bulyan: Multi-Krum selection followed by coordinate-wise trim.
+
+    Picks ``m`` survivors by Multi-Krum score (``m = n - 2f`` by default), then
+    for each coordinate drops the ``f`` largest and ``f`` smallest values and
+    uniform-means the remaining ``β = m - 2f``. Returns selected indices sorted
+    ascending so the comparison against the Rust kernel is order-independent.
+
+    Raises ValueError if ``n < 4f + 3`` or ``m`` is out of ``[2f+1, n-2f]``.
+    """
+    n = len(updates)
+    if n < 4 * f + 3:
+        raise ValueError(f"Bulyan requires n >= 4f+3; got n={n}, f={f}")
+
+    m_eff = m if m is not None else n - 2 * f
+    if m_eff < 2 * f + 1 or m_eff > n - 2 * f:
+        raise ValueError(f"Bulyan m must be in [2f+1={2 * f + 1}, n-2f={n - 2 * f}]; got {m_eff}")
+
+    # Phase 1 reuses the Multi-Krum oracle purely for its index list; the
+    # returned weights are thrown away (trimmed mean replaces them in Phase 2).
+    _, selected = multi_krum_reference(updates, f, m_eff)
+
+    # Phase 2: trimmed mean with k = f over only the selected survivors.
+    subset: list[ClientWeights] = [updates[i] for i in selected]
+    weights = trimmed_mean_reference(subset, f)
+    return weights, selected

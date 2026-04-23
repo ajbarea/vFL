@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 from velocity.strategy import (
     ALL_STRATEGIES,
+    Bulyan,
     FedAvg,
     FedMedian,
     FedProx,
@@ -18,7 +19,15 @@ from velocity.strategy import (
 
 def test_all_strategies_tuple_covers_sum_type():
     names = {cls.__name__ for cls in ALL_STRATEGIES}
-    assert names == {"FedAvg", "FedProx", "FedMedian", "TrimmedMean", "Krum", "MultiKrum"}
+    assert names == {
+        "FedAvg",
+        "FedProx",
+        "FedMedian",
+        "TrimmedMean",
+        "Krum",
+        "MultiKrum",
+        "Bulyan",
+    }
 
 
 def test_parameter_free_strategies_equal_and_hashable():
@@ -37,6 +46,9 @@ def test_parameterised_strategies_compare_by_field():
     assert MultiKrum(f=2, m=5) != MultiKrum(f=2, m=6)
     assert TrimmedMean(k=1) == TrimmedMean(k=1)
     assert TrimmedMean(k=1) != TrimmedMean(k=2)
+    assert Bulyan(f=1) == Bulyan(f=1, m=None)
+    assert Bulyan(f=1, m=5) != Bulyan(f=1, m=6)
+    assert Bulyan(f=1) != Bulyan(f=2)
 
 
 def test_frozen_prevents_mutation():
@@ -50,6 +62,7 @@ def test_strategy_name_returns_class_name():
     assert strategy_name(FedProx(mu=0.1)) == "FedProx"
     assert strategy_name(Krum(f=1)) == "Krum"
     assert strategy_name(MultiKrum(f=1, m=3)) == "MultiKrum"
+    assert strategy_name(Bulyan(f=1, m=5)) == "Bulyan"
 
 
 def test_parse_strategy_string_forms():
@@ -67,6 +80,8 @@ def test_parse_strategy_dict_forms():
     assert parse_strategy({"type": "MultiKrum", "f": 1, "m": 3}) == MultiKrum(f=1, m=3)
     assert parse_strategy({"type": "MultiKrum", "f": 1}) == MultiKrum(f=1, m=None)
     assert parse_strategy({"type": "TrimmedMean", "k": 2}) == TrimmedMean(k=2)
+    assert parse_strategy({"type": "Bulyan", "f": 1}) == Bulyan(f=1, m=None)
+    assert parse_strategy({"type": "Bulyan", "f": 1, "m": 5}) == Bulyan(f=1, m=5)
 
 
 def test_parse_strategy_passthrough():
@@ -78,6 +93,7 @@ def test_parse_strategy_passthrough():
         TrimmedMean(k=1),
         Krum(f=1),
         MultiKrum(f=1, m=2),
+        Bulyan(f=1, m=5),
     ):
         assert parse_strategy(s) == s
 

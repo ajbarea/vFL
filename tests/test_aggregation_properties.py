@@ -16,7 +16,12 @@ import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-from strategy_reference import krum_reference, multi_krum_reference, trimmed_mean_reference
+from strategy_reference import (
+    bulyan_reference,
+    krum_reference,
+    multi_krum_reference,
+    trimmed_mean_reference,
+)
 from velocity import _core
 
 # ---------------------------------------------------------------------------
@@ -337,6 +342,79 @@ def test_trimmed_mean_rejects_too_large_k() -> None:
     updates = [_core.ClientUpdate(num_samples=10, weights={"w": [float(i)]}) for i in range(3)]
     with pytest.raises(Exception):  # noqa: B017 — PyO3 boundary
         _core.aggregate(updates, _core.Strategy.trimmed_mean(2))
+
+
+# ---------------------------------------------------------------------------
+# Bulyan — parity with a NumPy oracle + Byzantine-robustness pin
+#
+# Bulyan composes Multi-Krum (Phase 1 survivor selection) with a coordinate-wise
+# trimmed mean (Phase 2, k = f on the survivors). The oracle below composes the
+# same two references — a divergence between Rust and oracle would mean one
+# phase or the subset-handoff between them has drifted.
+# ---------------------------------------------------------------------------
+
+
+@given(updates=_client_updates(n_clients=7))
+@_SETTINGS
+def test_bulyan_matches_numpy_oracle(updates: list[_core.ClientUpdate]) -> None:
+    """Rust Bulyan(f=1, m=default) must match the composed NumPy oracle."""
+    rust_result = _core.aggregate(updates, _core.Strategy.bulyan(1, None))
+    want_weights, _ = bulyan_reference(_as_dicts(updates), f=1, m=None)
+    _assert_weights_close(rust_result, want_weights)
+
+
+@given(updates=_client_updates(n_clients=8))
+@_SETTINGS
+def test_bulyan_explicit_m_matches_numpy_oracle(updates: list[_core.ClientUpdate]) -> None:
+    """n=8, f=1 ⇒ default m = n-2f = 6; also probe m=5 (still within [2f+1, n-2f])."""
+    rust_result = _core.aggregate(updates, _core.Strategy.bulyan(1, 5))
+    want_weights, _ = bulyan_reference(_as_dicts(updates), f=1, m=5)
+    _assert_weights_close(rust_result, want_weights)
+
+
+def test_bulyan_rejects_insufficient_clients() -> None:
+    """Bulyan requires n >= 4f+3; with f=1 that's 7 — we give it 6."""
+    updates = [_core.ClientUpdate(num_samples=10, weights={"w": [float(i)] * 3}) for i in range(6)]
+    with pytest.raises(Exception):  # noqa: B017 — PyO3 boundary
+        _core.aggregate(updates, _core.Strategy.bulyan(1, None))
+
+
+def test_bulyan_resists_byzantine_outlier() -> None:
+    """6 honest + 1 Byzantine ⇒ Bulyan stays near the honest cluster.
+
+    Byzantine-robustness pin: the Multi-Krum phase excludes the outlier from
+    the survivor set, and the trimmed-mean phase would absorb it even if one
+    slipped through. Either layer alone doesn't match Bulyan's guarantee — the
+    composition does.
+    """
+    base = {"w": [2.0, 2.0, 2.0]}
+    honest = [_core.ClientUpdate(num_samples=10, weights=dict(base)) for _ in range(6)]
+    attacker = _core.ClientUpdate(num_samples=10, weights={"w": [1e6, 1e6, 1e6]})
+    result = _core.aggregate([*honest, attacker], _core.Strategy.bulyan(1, None))
+    for got, want in zip(result["w"], base["w"], strict=True):
+        assert _close(got, want), f"Bulyan moved under 1 outlier: {got} vs {want}"
+
+
+def test_bulyan_uniform_weighting_ignores_sample_counts() -> None:
+    """Bulyan must not sample-weight — matches the Multi-Krum / TrimmedMean contract.
+
+    If any intermediate step leaked sample-weighting in, a Byzantine client
+    could inflate `num_samples` to amplify its pull. Pin the uniform-only
+    behavior on a case where the arithmetic means are distinguishable.
+    """
+    # 7 clients, all different weight vectors so the mean is order-dependent.
+    # Lopsided sample counts — uniform mean must ignore them.
+    n = 7
+    weights = [{"w": [float(i)]} for i in range(n)]
+    samples = [1, 1, 1, 1, 1, 1, 1_000_000]
+    updates = [
+        _core.ClientUpdate(num_samples=s, weights=w) for s, w in zip(samples, weights, strict=True)
+    ]
+    rust_result = _core.aggregate(updates, _core.Strategy.bulyan(1, None))
+    # Reference oracle is uniform by construction — if the Rust kernel agreed
+    # with sample-weighting, its output would diverge from the oracle here.
+    want_weights, _ = bulyan_reference(_as_dicts(updates), f=1, m=None)
+    np.testing.assert_allclose(rust_result["w"], want_weights["w"], rtol=1e-6, atol=1e-6)
 
 
 def test_multi_krum_m_equals_n_minus_f_is_uniform_mean() -> None:
