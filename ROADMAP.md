@@ -23,6 +23,14 @@ Session-by-session execution (the "what are we doing this PR") lives in
 - **Memory compaction** — `recent_runs.md` grows unbounded. Needs a
   bounded-retention strategy (last-N runs, or size-capped with rollup into
   a narrative summary).
+- **`_meta["anthropic/maxResultSizeChars"]` on high-volume MCP tools** —
+  any FastMCP tool that returns large outputs (full round history,
+  checkpoint listings, model card dumps) should annotate its decorator
+  with `meta={"anthropic/maxResultSizeChars": 500_000}` so Claude Code
+  clients don't truncate at the 25K default. Pattern verified in
+  kourai-khryseai's `mcp_servers/shell/server.py` (2026-04-23). Worth
+  applying to `run_demo`'s real-training sibling tool once it lands, and
+  to any leaderboard-dump tools added later.
 
 A2A specialist agents (convergence auditor, robustness auditor, etc.)
 are scoped under [Live experiment leaderboard](#live-experiment-leaderboard)
