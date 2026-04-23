@@ -76,10 +76,6 @@ coordinate. The robust aggregators are algorithmically heavier than
 FedAvg — the Rust-vs-Python gap grows with them. Measure each after
 implementation before quoting speedups.
 
-- **Bulyan** (El Mhamdi et al., 2018) — Multi-Krum → coordinate-wise trimmed
-  mean. Breakdown point `(n - 2f - 3)`. Strongest distance-based defense in
-  phalanx; gold-standard for Byzantine-robust evaluation. Now implementable
-  entirely in-tree: Multi-Krum + Trimmed Mean kernels both ship.
 - **Geometric median / RFA** — Weiszfeld's algorithm, ~50% Byzantine breakdown
   without explicit thresholding. Natural fit for Rust (iterative, arithmetic-heavy).
 - **ArKrum** (arXiv:2505.17226) — parameter-free Krum that estimates `f` via
@@ -386,6 +382,17 @@ Dated one-liners for shipped roadmap-scale work. Most recent first. The
 commit history and `docs/benchmarks.md` / `docs/convergence.md` are the
 authoritative record; this log is the human index into them.
 
+- **2026-04-23** — Bulyan Byzantine-robust aggregator
+  (`Strategy::Bulyan { f, m }`) shipped as thin orchestration over the
+  existing Multi-Krum and Trimmed Mean kernels: Phase 1 picks `m = n - 2f`
+  survivors by the Multi-Krum scoring rule (refactored `krum_select` to
+  expose `krum_select_indices` for reuse), Phase 2 runs coordinate-wise
+  trimmed mean with `k = f` over just the survivors. Validates Bulyan's
+  `n >= 4f + 3` breakdown bound. Bench rows at all three tiers in
+  `docs/benchmarks.md` (1.54 s at `large`, composes Multi-Krum + TrimmedMean
+  minus the `n → m` subset discount), Python dataclass + `Bulyan(f, m=None)`
+  wired through the Strategy sum type, numpy oracle in
+  `tests/strategy_reference.py` composes the existing references.
 - **2026-04-22** — Zero-copy numpy buffer-protocol return path across the
   PyO3 boundary. `ClientUpdate.weights`, `Orchestrator.global_weights`,
   free `aggregate`, and `apply_gaussian_noise` now return
