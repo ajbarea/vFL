@@ -340,10 +340,26 @@ def cmd_sync(_: argparse.Namespace) -> int:
     return 0
 
 
+def _build_extension(*, release: bool) -> None:
+    """Install `velocity._core` into the venv via maturin develop.
+
+    Debug profile is the default for the normal edit/test loop — optimisation
+    off, overflow checks on, ~3-4 s rebuild. Release profile is required for
+    meaningful bench numbers (optimisation on, LTO, ~10-100x faster runtime);
+    `cmd_bench` calls this helper with ``release=True`` so users don't have to
+    remember the flag.
+    """
+    profile = "release" if release else "debug"
+    _print_header(f"Build native extension (maturin develop, {profile})")
+    cmd = ["uv", "run", "maturin", "develop", "--uv"]
+    if release:
+        cmd.append("--release")
+    run(cmd)
+
+
 def cmd_build(_: argparse.Namespace) -> int:
     """Build the Rust extension in-place so `velocity._core` imports work."""
-    _print_header("Build native extension (maturin develop)")
-    run(["uv", "run", "maturin", "develop", "--uv"])
+    _build_extension(release=False)
     return 0
 
 
@@ -494,7 +510,16 @@ def cmd_bench(_: argparse.Namespace) -> int:
     The Rust bench measures aggregation-only (best case, no PyO3). The
     Python bench measures a full VelocityServer.run() round through the
     Python API — the number that the 'uv of FL' claim actually rests on.
+
+    `cargo bench` selects its own `bench` profile automatically, but the
+    pytest side loads whichever `velocity._core` maturin last installed in
+    the venv — which defaults to debug. Force a release-profile install
+    before the pytest step so both harnesses measure the same optimised
+    kernel. Cargo caches per-profile, so a repeat bench after a prior
+    release install is near-instant.
     """
+    _build_extension(release=True)
+
     _print_header("Rust benches (divan)")
     run(["cargo", "bench", "--bench", "aggregate"])
 

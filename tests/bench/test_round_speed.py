@@ -16,8 +16,7 @@ Two sides of the comparison:
   `docs` CI job and Rust-toolchain-less environment actually runs.
 
 Run locally:
-    uv run maturin develop --release
-    make bench
+    make bench  # installs a release-profile velocity._core first
 
 All three tiers are measured for both paths; the `large` Python cell is
 slow enough to dominate suite runtime but is run so the speedup column
