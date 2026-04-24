@@ -26,13 +26,18 @@ through PyO3, not Rust directly.
 
 ```bash
 uv sync
-uv run maturin develop --release
 make bench
 ```
+
+`make bench` ensures a release-profile `velocity._core` is installed in the
+venv before running the pytest harness (cargo bench already selects its own
+`bench` profile). The normal `make build` stays debug for fast edit/test
+rebuilds; you never need to remember `--release` by hand.
 
 Or invoke the harnesses directly:
 
 ```bash
+uv run maturin develop --release --uv
 cargo bench --bench aggregate
 uv run pytest tests/bench/ --benchmark-only --benchmark-columns=mean,stddev,rounds --benchmark-sort=mean
 ```
@@ -51,7 +56,7 @@ All tiers use **10 clients**. Weights are deterministic f32 in [-0.1, 0.1].
 
 ## Results
 
-**Snapshot: 2026-04-20. Hardware: AMD Ryzen 5 3600X (6C/12T, Zen 2), 9.7 GB RAM, WSL2 on Windows. rustc 1.95.0, Python 3.12.3, uv 0.11.5, PyO3 0.21, release build (`maturin develop --release`) with `lto = "thin"` + `codegen-units = 1`.**
+**Snapshot: 2026-04-23 (idle box — no background games, no browser, load average 0.27 at start). Hardware: AMD Ryzen 5 3600X (6C/12T, Zen 2), 9.7 GB RAM, WSL2 on Windows. rustc 1.95.0, Python 3.12.3, uv 0.11.5, PyO3 0.23 + numpy 0.23, release build (`maturin develop --release`) with `lto = "thin"` + `codegen-units = 1`.**
 
 ### Rust aggregation — raw (divan, mean)
 
@@ -60,15 +65,15 @@ kernel only, measured against pre-built `Vec<f32>` client updates.
 
 | strategy | tiny | medium | large |
 |---|---|---|---|
-| FedAvg | 5.0 µs | 7.6 ms | 121 ms |
-| FedProx | 4.1 µs | 7.7 ms | 124 ms |
-| FedMedian | 83 µs | 96.1 ms | 1.01 s |
-| TrimmedMean(k=1) | 90 µs | 105 ms | 1.06 s |
-| Krum(f=1) | 36 µs | 92.7 ms | 990 ms |
-| MultiKrum(f=1) | 43 µs | 97.6 ms | 1.01 s |
-| Bulyan(f=1) | 93 µs | 159 ms | 1.70 s |
+| FedAvg | 4.2 µs | 4.8 ms | 70.3 ms |
+| FedProx | 3.7 µs | 4.5 ms | 73.3 ms |
+| FedMedian | 76 µs | 87.1 ms | 903 ms |
+| TrimmedMean(k=1) | 93 µs | 98.6 ms | 988 ms |
+| Krum(f=1) | 34 µs | 73.9 ms | 740 ms |
+| MultiKrum(f=1) | 38 µs | 78.4 ms | 773 ms |
+| Bulyan(f=1) | 101 µs | 147 ms | 1.53 s |
 
-FedAvg on a 10M-parameter model with 10 clients aggregates in ~121 ms.
+FedAvg on a 10M-parameter model with 10 clients aggregates in ~70 ms.
 FedAvg accumulates in f64 and downcasts to f32 at the end to bound
 rounding error as client counts scale. FedMedian uses
 `select_nth_unstable_by` (O(C) expected) on a scratch buffer hoisted out
@@ -85,18 +90,21 @@ compared against a pure-Python FedAvg on the same inputs.
 
 | tier | Rust FedAvg | Rust FedProx | Rust FedMedian | Rust TrimmedMean(k=1) | Rust Krum(f=1) | Rust MultiKrum(f=1) | Rust Bulyan(f=1) | Python FedAvg | **Rust FedAvg speedup vs Python FedAvg** |
 |---|---|---|---|---|---|---|---|---|---|
-| tiny (~1K) | 4.4 µs | 4.7 µs | 84 µs | 88 µs | 39 µs | 41 µs | 99 µs | 417 µs | **95×** |
-| medium (~1M) | 4.4 ms | 4.4 ms | 100 ms | 101 ms | 58 ms | 59 ms | 154 ms | 512 ms | **117×** |
-| large (~10M) | 53 ms | 81 ms | 956 ms | 1.04 s | 729 ms | 818 ms | 1.54 s | 5.12 s | **97×** |
+| tiny (~1K) | 4.9 µs | 4.5 µs | 78 µs | 91 µs | 38 µs | 42 µs | 99 µs | 421 µs | **87×** |
+| medium (~1M) | 4.0 ms | 4.0 ms | 94.2 ms | 101 ms | 71.4 ms | 74.3 ms | 143 ms | 545 ms | **135×** |
+| large (~10M) | 42.2 ms | 42.2 ms | 890 ms | 1.01 s | 721 ms | 739 ms | 1.47 s | 5.82 s | **138×** |
 
-Pure-Python FedAvg at the `large` tier costs ~5.1 s per round on this
-snapshot. The full `tests/bench/` suite takes ~7 min on this box at
-21 tests × 6 strategies. The 4–10× range from the prior 2026-04-20
-snapshot widened to ~95–117× under a less-loaded WSL state today — the
-underlying Rust kernel is unchanged; the gap is system noise on the
-Python denominator (`Python FedAvg-large` moved from 8.48 s → 5.12 s,
-while `Rust FedAvg-large` moved from 817 ms → 53 ms — the ~16× change on
-the Rust side is what's most attributable to load, not algorithm). Treat
+Pure-Python FedAvg at the `large` tier costs ~5.8 s per round on this
+snapshot. The full `tests/bench/` suite takes ~9 min on this box at
+30 tests across 7 strategies × 3 tiers plus readout probes. This is the
+first clean-box snapshot since the 2026-04-22 numpy migration: compared
+to the prior 2026-04-20 snapshot (WSL2 actively loaded), Rust FedAvg at
+`large` dropped 53 → 42.2 ms and Python FedAvg drifted 5.12 → 5.82 s,
+so the speedup ratios widened from 95–117× to 87–138× across tiers —
+consistent with "the kernel is stable, the Python denominator is
+noisy." FedProx now matches FedAvg exactly in this run (both 42.2 ms
+at large; the 81 ms FedProx outlier in the prior snapshot was load
+noise — the kernels dispatch identically, see Findings below). Treat
 the speedup column as directional until CodSpeed lands; the consistent
 finding is "Rust FedAvg dominates at every tier."
 
@@ -106,8 +114,8 @@ the aggregation kernel, so no f32 weight data is cloned between Python
 and aggregation. When attacks *are* registered, the owned path kicks in
 automatically (attacks can mutate client updates).
 
-**TrimmedMean tracks FedMedian** at every tier (101 ms vs 100 ms at
-medium; 1.04 s vs 956 ms at large). Two `select_nth_unstable_by` calls
+**TrimmedMean tracks FedMedian** at every tier (101 ms vs 94.2 ms at
+medium; 1.01 s vs 890 ms at large). Two `select_nth_unstable_by` calls
 per coordinate cost slightly more than FedMedian's single call at `k=1`,
 even with the median-of-evens averaging skipped — the partition is the
 hot loop, the post-processing isn't. The two-call structure becomes
@@ -116,22 +124,22 @@ but at `k=1` it's a wash. The matched NumPy oracle in
 `tests/strategy_reference.py` confirms parity.
 
 **Krum/Multi-Krum land above Python FedAvg** at the `medium` and `large`
-tiers (729 ms / 818 ms vs 5.12 s at large — Krum is faster than Python
-FedAvg here, but ~14× slower than Rust FedAvg). That is algorithmically
+tiers (721 ms / 739 ms vs 5.82 s at large — Krum is faster than Python
+FedAvg here, but ~17× slower than Rust FedAvg). That is algorithmically
 honest: Krum is O(n²·d), FedAvg is O(n·d). The `f=1` Krum kernel builds a
 10×10 pairwise-distance matrix across all d parameters per call — at
 `large` (d ≈ 10 M), that's ~500 M f32 adds before the top-k selection.
-Robustness buys a ~14× cost factor over non-robust FedAvg at this scale;
+Robustness buys a ~17× cost factor over non-robust FedAvg at this scale;
 the matched Python oracle in `tests/strategy_reference.py` confirms the
 kernel is correct, it is not a perf bug.
 
 **Bulyan composes the two slowest robust kernels** and lands at their
 sum minus a subset discount: Phase 1 runs Multi-Krum over all `n`
-clients (818 ms at `large`), Phase 2 runs a coordinate-wise trimmed
+clients (739 ms at `large`), Phase 2 runs a coordinate-wise trimmed
 mean over the `m = n - 2f = 8` survivors (cheaper than the `n=10`
 TrimmedMean row because the per-coord partition shrinks from 10 to 8).
-Observed 1.54 s at `large` vs MultiKrum + TrimmedMean ≈ 1.86 s on the
-same snapshot — the subset discount is real. Bulyan pays a 29× cost
+Observed 1.47 s at `large` vs MultiKrum + TrimmedMean ≈ 1.75 s on the
+same snapshot — the subset discount is real. Bulyan pays a 35× cost
 factor over Rust FedAvg but gives the strongest distance-based
 Byzantine guarantee in the suite (breakdown at `n - 4f`). The oracle
 in `tests/strategy_reference.py` composes `multi_krum_reference` with
@@ -156,7 +164,8 @@ Roblox; directional — re-measure on idle before quoting externally):
 | medium (~1M) | 35.3 ms | 39.3 ms | ~4.0 ms | 90% |
 | large (~10M) | 425 ms | 459 ms | ~34 ms | **93%** |
 
-**After numpy migration** (same box, same hour, same Roblox):
+**After numpy migration** (same box, same hour, same Roblox — kept so
+the pre/post delta is apples-to-apples):
 
 | tier | `global_weights()` only | full round (`run_round + readout`) | getter speedup | round speedup |
 | --- | --- | --- | --- | --- |
@@ -169,8 +178,18 @@ round from 459 ms to 56.3 ms. `.global_weights()` is now ~12% of the
 full round (6.6 / 56.3) instead of 93% — the Rust aggregation kernel is
 once again the bottleneck, which is what the perf story actually claims.
 
-**Realistic-round speedup vs Python FedAvg at `large`**: 5.12 s / 56.3 ms
-= **91×**. Matches the `run_round`-alone table (97×) because marshaling
+**Clean idle re-measure (2026-04-23)** — same numpy path, no background
+load. Absolutes improve modestly; the migration story itself is
+unchanged.
+
+| tier | `global_weights()` only | full round (`run_round + readout`) | Δ getter vs loaded | Δ round vs loaded |
+| --- | --- | --- | --- | --- |
+| tiny | 1.16 µs | 6.0 µs | −38% | ~0 |
+| medium | 92.1 µs | 5.1 ms | −29% | −9% |
+| large | 5.7 ms | 47.0 ms | −14% | −16% |
+
+**Realistic-round speedup vs Python FedAvg at `large`**: 5.82 s / 47.0 ms
+= **124×**. Matches the `run_round`-alone table (138×) because marshaling
 overhead is essentially gone. The table above is now an honest
 apples-to-apples read, not a sliver of the user-facing cost.
 
@@ -193,26 +212,27 @@ applied during local training, not during server aggregation. The
 near-identical times are correct, not a measurement artifact. Pick
 FedProx for the convergence behaviour, not the speed.
 
-**FedMedian and TrimmedMean are the slowest aggregators** — both ~18×
-FedAvg at `large` through Python, with TrimmedMean(k=1) within ~10% of
-FedMedian. Coordinate-wise `select_nth_unstable_by` is branchy and
-doesn't vectorise well. Further gains would need SIMD quickselect or a
-histogram-based median — not worth it until a coordinate-wise robust
-aggregator sits on a hot path.
+**FedMedian and TrimmedMean are the slowest aggregators** — ~21×
+(FedMedian) and ~24× (TrimmedMean) Rust FedAvg at `large` through
+Python, with TrimmedMean(k=1) within ~14% of FedMedian. Coordinate-wise
+`select_nth_unstable_by` is branchy and doesn't vectorise well. Further
+gains would need SIMD quickselect or a histogram-based median — not
+worth it until a coordinate-wise robust aggregator sits on a hot path.
 
 **Krum and Multi-Krum sit below FedMedian/TrimmedMean through Python**
-at the `medium` / `large` tiers (58 ms vs 100 ms at medium; 729 ms vs
-956 ms at large). Distance-matrix work is mostly f32 adds and benefits
+at the `medium` / `large` tiers (71 ms vs 94 ms at medium; 721 ms vs
+890 ms at large). Distance-matrix work is mostly f32 adds and benefits
 from contiguous access; median's nth-element selection is inherently
-branchy. Both Byzantine-robust paths cost ~14× FedAvg at `large`, which
-is what the O(n²·d) factor predicts.
+branchy. Both Byzantine-robust paths cost ~17× Rust FedAvg at `large`,
+which is what the O(n²·d) factor predicts.
 
 **WSL2 on a shared desktop CPU is noisy.** Standard deviations on the
-`large` tier sit in the 1–17% range in this snapshot. Directional claims
-like "Rust FedAvg beats Python FedAvg at every tier" are safe;
-single-digit-percent regressions will be invisible on this hardware.
-Point estimates like the speedup column move ~3× between snapshots
-purely from system load (4–10× on the prior 2026-04-20 snapshot vs
-95–117× today); the [CodSpeed](https://codspeed.io) macro runners are
-the answer for continuous measurement — tracked as a follow-up, not yet
-integrated.
+`large` tier sit in the 2–11% range in this idle snapshot (vs 1–17% on
+loaded snapshots). Directional claims like "Rust FedAvg beats Python
+FedAvg at every tier" are safe; single-digit-percent regressions will
+be invisible on this hardware. Point estimates like the speedup column
+move between snapshots from system load (4–10× on 2026-04-20 loaded vs
+87–138× today idle) — the kernel hasn't changed across those snapshots,
+the Python denominator has. The [CodSpeed](https://codspeed.io) macro
+runners are the answer for continuous measurement — tracked as a
+follow-up, not yet integrated.
