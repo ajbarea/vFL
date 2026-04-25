@@ -15,7 +15,7 @@ Run::
     uv run maturin develop --release
     uv run python examples/mnist_fedavg.py
 
-Expect test accuracy to climb from ~10% (random) to >85% over 10 rounds.
+Expect test accuracy to climb from ~10% (random) to >90% over 15 rounds.
 First run downloads MNIST via ``datasets.load_dataset`` into the HF cache.
 """
 
@@ -39,16 +39,16 @@ from velocity.training import (
 
 NUM_CLIENTS = 5
 SHARDS_PER_CLIENT = 2  # 5 * 2 = 10 shards, one per digit class
-ROUNDS = 10
+ROUNDS = 15
 LOCAL_EPOCHS = 1
 BATCH_SIZE = 64
 LR = 0.01
 SEED = 0
 
 # Nightly convergence floor: if this run doesn't clear it, something regressed.
-# 0.85 leaves slack above the sub-convergent ~0.80 we saw in early iterations
-# and below the ~0.92 we've observed on passing runs.
-MIN_FINAL_ACC = 0.85
+# 0.90 sits below the ~0.92 we've observed on 10-round passing runs and leaves
+# headroom for the additional 5 rounds to push results into the 0.93-0.95 range.
+MIN_FINAL_ACC = 0.90
 
 MNIST_TRANSFORM = transforms.Compose(
     [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
