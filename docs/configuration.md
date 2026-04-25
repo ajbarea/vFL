@@ -60,18 +60,21 @@ server.simulate_attack(
     *,
     intensity: float = 0.1,
     count: int = 1,
-    fraction: float = 0.1,
 )
 ```
 
 | Field | Used by | Type | Default | Description |
 |---|---|---|---|---|
-| `attack_type` | all | `str` | *required* | `model_poisoning` \| `sybil_nodes` \| `gaussian_noise` \| `label_flipping`. |
+| `attack_type` | all | `str` | *required* | `model_poisoning` \| `sybil_nodes` \| `gaussian_noise`. |
 | `intensity` | `model_poisoning`, `gaussian_noise` | `float ≥ 0` | `0.1` | Magnitude of the perturbation. |
 | `count` | `sybil_nodes` | `int ≥ 1` | `1` | Number of sybil clients to inject. |
-| `fraction` | `label_flipping` | `float ∈ [0, 1]` | `0.1` | Fraction of clients whose labels are flipped. |
 
 > **Call order** — `simulate_attack` can be called **before or after** `run()`. When called before, attacks are queued and applied to the first round that executes.
+
+> **Data-pipeline attacks** — for `label_flipping` (and other label/feature
+> corruption primitives) see [`velocity.data_attacks`](attacks.md#data-pipeline-attacks-velocitydata_attacks).
+> Those attacks live in the Python data layer because the Rust core never
+> sees raw labels.
 
 ## Strategy parameters
 
@@ -79,11 +82,13 @@ Each strategy is a frozen dataclass; parameters live on the instance. Pass the i
 
 | Strategy | Parameter | Default | Description |
 |---|---|---|---|
-| `FedAvg` | *(none)* | — | Weighted mean by `num_samples`. |
-| `FedProx` | `mu: float` | `0.01` | Proximal-term coefficient. Higher = more conservative updates, better on heterogeneous clients. |
-| `FedMedian` | *(none)* | — | Coordinate-wise median. |
-| `Krum` | `f: int` | *required* | Byzantine-tolerance bound. Round must have `n ≥ 2f + 3` clients. |
-| `MultiKrum` | `f: int`, `m: int \| None` | `m = n − f` when `None` | Average the `m` lowest-scoring updates. `1 ≤ m ≤ n − f`. |
+| `FedAvg` | *(none)* | — | Sample-weighted mean (McMahan et al., AISTATS 2017). |
+| `FedProx` | `mu: float` | `0.01` | Proximal-term coefficient applied client-side in `local_train`; aggregation kernel is FedAvg (Li et al., MLSys 2020). |
+| `FedMedian` | *(none)* | — | Coordinate-wise median (Yin et al., ICML 2018). |
+| `TrimmedMean` | `k: int` | *required* | Drop `k` smallest + `k` largest per coordinate, mean the rest. Requires `2k < n` (Yin et al., ICML 2018). |
+| `Krum` | `f: int` | *required* | Pick the single closest client by Krum score. Requires `n ≥ 2f + 3` (Blanchard et al., NeurIPS 2017). |
+| `MultiKrum` | `f: int`, `m: int \| None` | `m = n − f` when `None` | Average the `m` lowest-scoring Krum updates. `1 ≤ m ≤ n − f` (El Mhamdi et al., ICML 2018). |
+| `Bulyan` | `f: int`, `m: int \| None` | `m = n − 2f` when `None` | Multi-Krum → trimmed-mean composition. Requires `n ≥ 4f + 3` (El Mhamdi et al., ICML 2018). |
 
 See [Strategies](strategies.md) for when to use each.
 

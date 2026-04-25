@@ -106,7 +106,7 @@ def run(
 
 @app.command("simulate-attack")
 def simulate_attack(
-    attack_type: str = typer.Argument(..., help="Attack name."),
+    attack_type: str = typer.Argument(..., help="Round-level attack name."),
     model_id: str = typer.Option("demo/model", help="Hugging Face model identifier."),
     dataset: str = typer.Option("demo/dataset", help="Dataset name or path (HF Hub or local)."),
     strategy: str = typer.Option(
@@ -117,9 +117,13 @@ def simulate_attack(
     min_clients: int = typer.Option(1, min=1, help="Minimum number of clients."),
     intensity: float = typer.Option(0.1, min=0.0, help="Attack intensity."),
     count: int = typer.Option(1, min=1, help="Sybil node count."),
-    fraction: float = typer.Option(0.1, min=0.0, max=1.0, help="Label-flipping fraction."),
 ) -> None:
-    """Register an attack and run one round to observe impact."""
+    """Register a round-level attack and run one round to observe impact.
+
+    For data-pipeline attacks (label flipping) call
+    ``velocity.data_attacks.make_label_flip_callback`` from a script — the
+    Rust orchestrator only handles weight/client-level attacks.
+    """
     if attack_type not in VALID_ATTACKS:
         raise typer.BadParameter(f"attack_type must be one of: {', '.join(sorted(VALID_ATTACKS))}")
     server = VelocityServer(
@@ -131,7 +135,6 @@ def simulate_attack(
         attack_type,
         intensity=intensity,
         count=count,
-        fraction=fraction,
     )
     summaries = server.run(min_clients=min_clients, rounds=1)
     typer.echo(json.dumps(summaries[0]))

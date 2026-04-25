@@ -26,17 +26,29 @@ from typing import Any, cast
 
 @dataclass(frozen=True)
 class FedAvg:
-    """Federated Averaging — weighted mean by number of local samples."""
+    """Federated Averaging — sample-weighted mean of client weights.
+
+    McMahan, Moore, Ramage, Hampson, Agüera y Arcas. *Communication-Efficient
+    Learning of Deep Networks from Decentralized Data*. AISTATS 2017,
+    pp. 1273-1282.
+    https://proceedings.mlr.press/v54/mcmahan17a.html
+    """
 
 
 @dataclass(frozen=True)
 class FedProx:
-    """FedAvg with a proximal regularisation term.
+    """FedAvg aggregation + proximal regularisation in *client-side* training.
 
     ``mu`` controls how strongly each client is pulled back toward the global
-    model during local training. Does not change the aggregation kernel —
-    FedProx and FedAvg produce identical server-side weights; the client's
-    objective is where ``mu`` lives.
+    model during local SGD via the proximal term ``(mu/2)·||w - w_t||²``.
+    The aggregation kernel is identical to :class:`FedAvg`; the proximal
+    term lives in :func:`velocity.training.local_train` (pass
+    ``proximal_mu=mu``). The strategy carries ``mu`` so callers can read
+    it back from the orchestrator as round metadata.
+
+    Li, Sahu, Zaheer, Sanjabi, Talwalkar, Smith. *Federated Optimization
+    in Heterogeneous Networks*. MLSys 2020, pp. 429-450.
+    https://proceedings.mlsys.org/paper_files/paper/2020/hash/1f5fe83998a09396ebe6477d9475ba0c-Abstract.html
     """
 
     mu: float = 0.01
@@ -44,18 +56,26 @@ class FedProx:
 
 @dataclass(frozen=True)
 class FedMedian:
-    """Coordinate-wise median — tolerates up to ~(n-1)/2 Byzantine clients."""
+    """Coordinate-wise median — tolerates up to ⌊(n-1)/2⌋ Byzantine clients.
+
+    Yin, Chen, Ramchandran, Bartlett. *Byzantine-Robust Distributed Learning:
+    Towards Optimal Statistical Rates*. ICML 2018, pp. 5650-5659.
+    https://proceedings.mlr.press/v80/yin18a.html
+    """
 
 
 @dataclass(frozen=True)
 class TrimmedMean:
-    """Coordinate-wise trimmed mean (Yin et al. 2018, arXiv:1803.01498).
+    """Coordinate-wise trimmed mean — drops the ``k`` smallest and ``k`` largest
+    values per coordinate, then uniform-means the remaining ``n - 2k``.
 
-    Drops the ``k`` smallest and ``k`` largest values per coordinate, then
-    uniform-means the remaining ``n - 2k``. Tolerates up to ``k`` Byzantine
-    clients per coordinate; requires ``2*k < n`` at aggregation time.
-    ``TrimmedMean(k=0)`` is a uniform mean (not sample-weighted — distinct
-    from :class:`FedAvg`).
+    Tolerates up to ``k`` Byzantine clients per coordinate; requires
+    ``2*k < n`` at aggregation time. ``TrimmedMean(k=0)`` is a uniform
+    mean (not sample-weighted — distinct from :class:`FedAvg`).
+
+    Yin, Chen, Ramchandran, Bartlett. *Byzantine-Robust Distributed Learning:
+    Towards Optimal Statistical Rates*. ICML 2018, pp. 5650-5659.
+    https://proceedings.mlr.press/v80/yin18a.html
     """
 
     k: int
@@ -63,10 +83,14 @@ class TrimmedMean:
 
 @dataclass(frozen=True)
 class Krum:
-    """Byzantine-robust selection (Blanchard et al. 2017, arXiv:1703.02757).
+    """Byzantine-robust selection — picks the single client whose sum of
+    ``n - f - 2`` smallest squared distances to other clients is minimal.
 
-    Picks the single client whose sum of ``n - f - 2`` smallest squared
-    distances to other clients is minimal. Requires ``n >= 2*f + 3``.
+    Requires ``n >= 2*f + 3``.
+
+    Blanchard, El Mhamdi, Guerraoui, Stainer. *Machine Learning with
+    Adversaries: Byzantine Tolerant Gradient Descent*. NeurIPS 2017.
+    https://proceedings.neurips.cc/paper/2017/hash/f4b9ec30ad9f68f89b29639786cb62ef-Abstract.html
     """
 
     f: int
@@ -74,11 +98,15 @@ class Krum:
 
 @dataclass(frozen=True)
 class MultiKrum:
-    """Multi-Krum (El Mhamdi et al. 2018) — averages top-``m`` by Krum score.
+    """Multi-Krum — averages the top-``m`` clients by Krum score.
 
     ``m = None`` resolves to ``n - f`` at aggregation time ("largest
     non-Byzantine group" interpretation). Requires ``n >= 2*f + 3`` and
     ``1 <= m <= n - f``. ``MultiKrum(f, m=1)`` reduces to :class:`Krum`.
+
+    El Mhamdi, Guerraoui, Rouault. *The Hidden Vulnerability of Distributed
+    Learning in Byzantium*. ICML 2018.
+    https://proceedings.mlr.press/v80/mhamdi18a.html
     """
 
     f: int
@@ -87,20 +115,45 @@ class MultiKrum:
 
 @dataclass(frozen=True)
 class Bulyan:
-    """Bulyan (El Mhamdi et al. 2018) — Multi-Krum → coordinate-wise trimmed mean.
+    """Bulyan — Multi-Krum → coordinate-wise trimmed-mean composition.
 
-    Phase 1 picks ``m`` candidates by the Multi-Krum scoring rule; Phase 2 drops
-    the ``f`` largest and ``f`` smallest values per coordinate among those
-    survivors and uniform-means the remaining ``β = m - 2f``. ``m = None``
-    resolves to ``n - 2*f`` at aggregation time (the paper's default).
-    Requires ``n >= 4*f + 3`` and ``2*f + 1 <= m <= n - 2*f``.
+    Phase 1 picks ``m`` candidates by the Multi-Krum scoring rule; Phase 2
+    drops the ``f`` largest and ``f`` smallest values per coordinate among
+    those survivors and uniform-means the remaining ``β = m - 2f``.
+    ``m = None`` resolves to ``n - 2*f`` at aggregation time (the paper's
+    default). Requires ``n >= 4*f + 3`` and ``2*f + 1 <= m <= n - 2*f``.
+
+    El Mhamdi, Guerraoui, Rouault. *The Hidden Vulnerability of Distributed
+    Learning in Byzantium*. ICML 2018, Algorithm 2.
+    https://proceedings.mlr.press/v80/mhamdi18a.html
     """
 
     f: int
     m: int | None = None
 
 
-Strategy = FedAvg | FedProx | FedMedian | TrimmedMean | Krum | MultiKrum | Bulyan
+@dataclass(frozen=True)
+class GeometricMedian:
+    """Geometric Median via Weiszfeld iteration (Robust Federated Aggregation).
+
+    Solves ``argmin_y Σ w_i · ||y - x_i||`` over flattened client weights
+    with sample-count weighting. Sample-weighted; 1/2 breakdown point —
+    robust to up to ⌊(n-1)/2⌋ Byzantine clients with bounded contamination
+    over a constant number of iterations. The defaults follow the RFA
+    paper's recommendation: a few Weiszfeld iterations are sufficient in
+    practice, and further iterations don't improve the breakdown bound.
+
+    Pillutla, Kakade, Harchaoui. *Robust Aggregation for Federated
+    Learning*. IEEE Transactions on Signal Processing, vol. 70,
+    pp. 1142-1154, 2022. DOI: 10.1109/TSP.2022.3153135.
+    https://arxiv.org/abs/1912.13445
+    """
+
+    eps: float = 1e-6
+    max_iter: int = 3
+
+
+Strategy = FedAvg | FedProx | FedMedian | TrimmedMean | Krum | MultiKrum | Bulyan | GeometricMedian
 """Union of every aggregation strategy — use in type hints and isinstance checks."""
 
 
@@ -112,6 +165,7 @@ ALL_STRATEGIES: tuple[type[Strategy], ...] = (
     Krum,
     MultiKrum,
     Bulyan,
+    GeometricMedian,
 )
 """Every concrete strategy class, in stable display order."""
 

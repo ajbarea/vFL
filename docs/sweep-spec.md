@@ -117,8 +117,8 @@ Most robust under attack: **FedMedian** (Δ loss 0.011 vs 0.321 for FedAvg)
    `orchestrator.rs::register_attack`. The Rust layer should expose a
    `valid_attacks()` free function; Python reads from it. Listed as an open
    item in ROADMAP.
-4. **`simulate_attack` kwargs** (intensity/count/fraction) are a union of
-   all attacks' parameters. Still pending: switch to
+4. **`simulate_attack` kwargs** (intensity/count) are a union of the
+   round-level attacks' parameters. Still pending: switch to
    `simulate_attack(attack_type: str, **params)` once the Rust side exposes
    per-attack parameter schemas.
 

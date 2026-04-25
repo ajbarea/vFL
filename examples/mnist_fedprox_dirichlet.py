@@ -2,15 +2,21 @@
 
 Ten clients, each holding a Dirichlet(alpha=0.3) slice of MNIST — moderate
 label skew, most clients see 3-6 digit classes rather than FedAvg's
-easier shard partition. FedProx (McMahan et al., 2020) adds a proximal
+easier shard partition. FedProx (Li et al., MLSys 2020) adds a proximal
 term ``(mu/2) * ||w_local - w_global||^2`` to every local optimisation
-step, damping client drift on heterogeneous data.
+step, damping client drift on heterogeneous data. The aggregation kernel
+is the same as FedAvg — the proximal term lives in client-side training
+and is applied here via ``local_train(..., proximal_mu=MU)``.
 
 The test is that FedProx clears the convergence floor on *this* partition
 — the same Dirichlet setup that would make plain FedAvg's round-to-round
 loss oscillate harder. Surfaced in the nightly so a regression in the
-proximal term (or in the PyO3 glue that passes ``μ`` into the Rust
-kernel) is caught within a day.
+client-side proximal term is caught within a day.
+
+Reference:
+    Li, Sahu, Zaheer, Sanjabi, Talwalkar, Smith. *Federated Optimization
+    in Heterogeneous Networks*. MLSys 2020, pp. 429-450.
+    https://proceedings.mlsys.org/paper_files/paper/2020/hash/1f5fe83998a09396ebe6477d9475ba0c-Abstract.html
 
 Run::
 
@@ -121,7 +127,13 @@ def main() -> None:
         for client in split.clients:
             local_model = make_model()
             local_model.load_state_dict(copy.deepcopy(global_state))
-            local_train(local_model, client.loader, epochs=LOCAL_EPOCHS, lr=LR)
+            local_train(
+                local_model,
+                client.loader,
+                epochs=LOCAL_EPOCHS,
+                lr=LR,
+                proximal_mu=MU,
+            )
             client_updates.append(
                 _core.ClientUpdate(
                     num_samples=client.num_samples,

@@ -33,10 +33,13 @@ def test_attack_result_str():
 
 
 def test_valid_attacks_contains_expected():
+    # Round-level attacks only — label_flipping is a data-pipeline attack
+    # and lives in velocity.data_attacks (DATA_ATTACK_TYPES).
     assert "model_poisoning" in VALID_ATTACKS
     assert "sybil_nodes" in VALID_ATTACKS
     assert "gaussian_noise" in VALID_ATTACKS
-    assert "label_flipping" in VALID_ATTACKS
+    assert "label_flipping" not in VALID_ATTACKS
+    assert len(VALID_ATTACKS) == 3
 
 
 def test_attack_result_is_frozen():

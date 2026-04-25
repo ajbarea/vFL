@@ -25,7 +25,7 @@ class VelocityServer(
 | Method | Signature | Returns | Description |
 |---|---|---|---|
 | `run` | `run(min_clients: int = 1, rounds: int = 1)` | `list[dict]` | Execute N rounds. Each dict has `round`, `num_clients`, `global_loss`, `attack_results`, `selected_client_ids`. |
-| `simulate_attack` | `simulate_attack(attack_type, *, intensity=0.1, count=1, fraction=0.1)` | `None` | Queue an attack for the next round. Can be called before or after `run()`. |
+| `simulate_attack` | `simulate_attack(attack_type, *, intensity=0.1, count=1)` | `None` | Queue a round-level attack for the next round. Can be called before or after `run()`. For data-pipeline attacks see `velocity.data_attacks`. |
 
 #### Properties
 
@@ -99,16 +99,32 @@ class AttackResult:
 
 ### `velocity.attacks.VALID_ATTACKS`
 
-Frozen set of recognized attack identifiers.
+Frozen set of recognized **round-level** attack identifiers (those handled
+by the Rust orchestrator). Data-pipeline attacks live in
+`velocity.data_attacks.DATA_ATTACK_TYPES`.
 
 ```python
 VALID_ATTACKS: frozenset[str] = frozenset({
     "model_poisoning",
     "sybil_nodes",
     "gaussian_noise",
-    "label_flipping",
 })
 ```
+
+### `velocity.data_attacks.DATA_ATTACK_TYPES`
+
+Frozen set of recognized data-pipeline attack identifiers, applied
+client-side via the `label_attack` callback in `local_train`.
+
+```python
+DATA_ATTACK_TYPES: frozenset[str] = frozenset({
+    "label_flipping",
+    "targeted_label_flipping",
+})
+```
+
+See `velocity.data_attacks.make_label_flip_callback` for the closure
+factory that wires these into a training loop.
 
 ---
 
@@ -121,7 +137,7 @@ Compiled by `maturin develop`. Imported lazily by `velocity.server`; absent in p
 | `Orchestrator` | class | Owns per-experiment round state. Accepts `ClientUpdate[]`, returns `RoundSummary`. |
 | `ClientUpdate` | class | Rust-side update struct. `num_samples: int`, `weights: dict[str, list[float]]`. |
 | `RoundSummary` | class | Round result. `round`, `num_clients`, `global_loss`, `attack_results` (JSON), `selected_client_ids`. |
-| `Strategy` | class | Strategy factory. Constructors: `Strategy.fed_avg()`, `Strategy.fed_prox(mu)`, `Strategy.fed_median()`, `Strategy.krum(f)`, `Strategy.multi_krum(f, m=None)`. |
+| `Strategy` | class | Strategy factory. Constructors: `Strategy.fed_avg()`, `Strategy.fed_prox(mu)`, `Strategy.fed_median()`, `Strategy.trimmed_mean(k)`, `Strategy.krum(f)`, `Strategy.multi_krum(f, m=None)`, `Strategy.bulyan(f, m=None)`. |
 | `aggregate` | function | Standalone aggregation kernel — useful for testing. |
 | `apply_gaussian_noise` | function | Standalone noise kernel. |
 

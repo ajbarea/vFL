@@ -70,21 +70,24 @@ Registers one attack and runs a single round so you can observe its impact witho
 uv run velocity simulate-attack model_poisoning --intensity 0.2
 uv run velocity simulate-attack sybil_nodes --count 5
 uv run velocity simulate-attack gaussian_noise --intensity 0.1
-uv run velocity simulate-attack label_flipping --fraction 0.25
 ```
 
 | Argument / Option | Type | Default | Description |
 |---|---|---|---|
-| `ATTACK_TYPE` (positional) | `str` | *required* | `model_poisoning` \| `sybil_nodes` \| `gaussian_noise` \| `label_flipping`. |
+| `ATTACK_TYPE` (positional) | `str` | *required* | `model_poisoning` \| `sybil_nodes` \| `gaussian_noise`. |
 | `--model-id` | `str` | `demo/model` | Model identifier for the one-round probe. |
 | `--dataset` | `str` | `demo/dataset` | Dataset identifier for the probe. |
 | `--strategy` | `str` | `FedAvg` | Aggregation strategy. |
 | `--min-clients` | `int ≥ 1` | `1` | Minimum clients for the probe round. |
 | `--intensity` | `float ≥ 0` | `0.1` | Used by `model_poisoning` and `gaussian_noise`. |
 | `--count` | `int ≥ 1` | `1` | Used by `sybil_nodes`. |
-| `--fraction` | `float ∈ [0,1]` | `0.1` | Used by `label_flipping`. |
 
 **Output** — a single JSON object describing the probe round.
+
+> Data-pipeline attacks (label flipping etc.) don't fit the one-shot CLI
+> shape — they have to compose with a real data loader. Use
+> [`velocity.data_attacks`](attacks.md#data-pipeline-attacks-velocitydata_attacks)
+> from a Python script instead.
 
 ---
 

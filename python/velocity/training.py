@@ -11,7 +11,7 @@ module without it raises a clear error.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 try:
@@ -70,18 +70,57 @@ def local_train(
     momentum: float = 0.9,
     loss_fn: nn.Module | None = None,
     device: str | torch.device = "cpu",
+    proximal_mu: float = 0.0,
+    label_attack: Callable[[Tensor], Tensor] | None = None,
 ) -> nn.Module:
-    """Run local SGD on one client's data, returning the trained model in-place."""
+    """Run local SGD on one client's data, returning the trained model in-place.
+
+    With ``proximal_mu > 0`` this implements the FedProx local objective
+    (Li et al., MLSys 2020): ``L_prox(w; w_t) = L(w) + (mu/2) * ||w - w_t||^2``,
+    where ``w_t`` is the global model at the start of the round. The caller
+    is expected to load the global state into ``model`` before calling, so
+    the parameters at function entry are the anchor ``w_t``. Setting
+    ``proximal_mu = 0`` recovers vanilla FedAvg local SGD.
+
+    With ``label_attack`` set, every minibatch's labels are passed through
+    the callable before the loss is computed — this is the data-pipeline
+    hook for label-flipping attacks (Biggio et al., ICML 2012; vFL's
+    ``velocity.data_attacks`` module). Callable contract: takes a label
+    tensor, returns a same-shape tensor. Identity by default (no attack).
+
+    Reference:
+        Li, Sahu, Zaheer, Sanjabi, Talwalkar, Smith. *Federated Optimization
+        in Heterogeneous Networks*. MLSys 2020.
+        https://proceedings.mlsys.org/paper_files/paper/2020/hash/1f5fe83998a09396ebe6477d9475ba0c-Abstract.html
+    """
     criterion = loss_fn if loss_fn is not None else nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum)
     model.train()
     model.to(device)
+
+    # FedProx proximal anchor: snapshot the parameters the caller just loaded
+    # (the global model w_t for this round), detached and frozen on `device`.
+    # Iterate `parameters()` not `state_dict()` so we exclude non-trainable
+    # buffers like BatchNorm running stats — those don't belong in the
+    # proximal term.
+    global_params: list[Tensor] | None = None
+    if proximal_mu > 0:
+        global_params = [p.detach().clone().to(device) for p in model.parameters()]
+
     for _ in range(epochs):
         for x, y in loader:
             x = x.to(device)
             y = y.to(device)
+            if label_attack is not None:
+                y = label_attack(y)
             optimizer.zero_grad()
             loss = criterion(model(x), y)
+            if global_params is not None:
+                prox_sq = sum(
+                    ((p - g) * (p - g)).sum()
+                    for p, g in zip(model.parameters(), global_params, strict=True)
+                )
+                loss = loss + (proximal_mu / 2.0) * prox_sq
             loss.backward()
             optimizer.step()
     return model

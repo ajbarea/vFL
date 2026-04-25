@@ -39,7 +39,6 @@ class AttackSpec(BaseModel):
     type: str
     intensity: float = 0.1
     count: int = 1
-    fraction: float = 0.1
 
 
 class RunSpec(BaseModel):
@@ -238,7 +237,6 @@ def _run_one(spec_dict: dict[str, Any]) -> dict[str, Any]:
                 attack.type,
                 intensity=attack.intensity,
                 count=attack.count,
-                fraction=attack.fraction,
             )
         summaries = server.run(min_clients=spec.min_clients, rounds=spec.rounds)
     except Exception as e:

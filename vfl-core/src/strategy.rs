@@ -2,45 +2,99 @@ use std::borrow::Borrow;
 use std::collections::HashMap;
 
 /// Aggregation strategy for federated learning rounds.
+///
+/// All variants are paper-cited implementations; see the per-variant doc
+/// comments for original venues. Aggregation kernels live further down
+/// this file (`fedavg`, `fed_median`, `trimmed_mean`, `krum_select`,
+/// `bulyan`); this enum is the dispatch contract.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[allow(clippy::enum_variant_names)] // Public API — variant names mirror FL literature.
 pub enum Strategy {
+    /// Federated Averaging — sample-weighted mean of client weights.
+    ///
+    /// McMahan, Moore, Ramage, Hampson, Agüera y Arcas. *Communication-Efficient
+    /// Learning of Deep Networks from Decentralized Data*. AISTATS 2017,
+    /// pp. 1273–1282.
+    /// <https://proceedings.mlr.press/v54/mcmahan17a.html>
     FedAvg,
-    FedProx {
-        mu: f64,
-    },
+    /// FedProx — server-side aggregation is identical to FedAvg; the
+    /// `mu` proximal coefficient is consumed *client-side* by the local
+    /// training step (`velocity.training.local_train(proximal_mu=...)`).
+    /// Carried on the server-side strategy purely as round metadata so
+    /// caller code can read it back from the orchestrator.
+    ///
+    /// Li, Sahu, Zaheer, Sanjabi, Talwalkar, Smith. *Federated Optimization
+    /// in Heterogeneous Networks*. MLSys 2020, pp. 429–450.
+    /// <https://proceedings.mlsys.org/paper_files/paper/2020/hash/1f5fe83998a09396ebe6477d9475ba0c-Abstract.html>
+    FedProx { mu: f64 },
+    /// Coordinate-wise median — tolerates up to ⌊(n−1)/2⌋ Byzantine
+    /// clients per coordinate.
+    ///
+    /// Yin, Chen, Ramchandran, Bartlett. *Byzantine-Robust Distributed
+    /// Learning: Towards Optimal Statistical Rates*. ICML 2018,
+    /// pp. 5650–5659.
+    /// <https://proceedings.mlr.press/v80/yin18a.html>
     FedMedian,
-    /// Coordinate-wise trimmed mean (Yin et al. 2018, arXiv:1803.01498) —
-    /// drop the `k` smallest and `k` largest values per coordinate, then
-    /// uniform-mean the remaining `n - 2k`. Tolerates up to `k` Byzantine
-    /// clients per coordinate. Requires `2*k < n`.
-    TrimmedMean {
-        k: usize,
-    },
-    /// Krum (Blanchard et al. 2017, arXiv:1703.02757) — picks the single
-    /// client whose sum of `n - f - 2` smallest squared distances to others
-    /// is minimal. Byzantine-robust when `n >= 2*f + 3`.
-    Krum {
-        f: usize,
-    },
-    /// Multi-Krum (El Mhamdi et al. 2018) — averages the top-`m` clients by
-    /// Krum score. `m = None` resolves to `n - f` ("largest non-Byzantine
-    /// group") at aggregation time. Requires `n >= 2*f + 3` and
-    /// `1 <= m <= n - f`.
-    MultiKrum {
-        f: usize,
-        m: Option<usize>,
-    },
-    /// Bulyan (El Mhamdi et al. 2018, Algorithm 2) — composes Multi-Krum with
-    /// a coordinate-wise trimmed mean. Phase 1 selects `m` candidates via the
-    /// Multi-Krum scoring rule; Phase 2 drops the `f` largest and `f` smallest
-    /// per coordinate among the survivors and uniform-means the remaining
-    /// `β = m - 2f`. `m = None` resolves to `n - 2f` (the paper's default).
-    /// Requires `n >= 4*f + 3` and `2*f + 1 <= m <= n - 2*f`.
-    Bulyan {
-        f: usize,
-        m: Option<usize>,
-    },
+    /// Coordinate-wise trimmed mean — drop the `k` smallest and `k`
+    /// largest values per coordinate, then uniform-mean the remaining
+    /// `n − 2k`. Tolerates up to `k` Byzantine clients per coordinate.
+    /// Requires `2*k < n`.
+    ///
+    /// Yin, Chen, Ramchandran, Bartlett. *Byzantine-Robust Distributed
+    /// Learning: Towards Optimal Statistical Rates*. ICML 2018,
+    /// pp. 5650–5659.
+    /// <https://proceedings.mlr.press/v80/yin18a.html>
+    TrimmedMean { k: usize },
+    /// Krum — picks the single client whose sum of `n − f − 2` smallest
+    /// squared distances to others is minimal. Byzantine-robust when
+    /// `n ≥ 2*f + 3`.
+    ///
+    /// Blanchard, El Mhamdi, Guerraoui, Stainer. *Machine Learning with
+    /// Adversaries: Byzantine Tolerant Gradient Descent*. NeurIPS 2017.
+    /// <https://proceedings.neurips.cc/paper/2017/hash/f4b9ec30ad9f68f89b29639786cb62ef-Abstract.html>
+    Krum { f: usize },
+    /// Multi-Krum — averages the top-`m` clients by Krum score. `m = None`
+    /// resolves to `n − f` ("largest non-Byzantine group") at aggregation
+    /// time. Requires `n ≥ 2*f + 3` and `1 ≤ m ≤ n − f`.
+    ///
+    /// El Mhamdi, Guerraoui, Rouault. *The Hidden Vulnerability of
+    /// Distributed Learning in Byzantium*. ICML 2018.
+    /// <https://proceedings.mlr.press/v80/mhamdi18a.html>
+    MultiKrum { f: usize, m: Option<usize> },
+    /// Bulyan (Algorithm 2) — composes Multi-Krum with a coordinate-wise
+    /// trimmed mean. Phase 1 selects `m` candidates via the Multi-Krum
+    /// scoring rule; Phase 2 drops the `f` largest and `f` smallest per
+    /// coordinate among the survivors and uniform-means the remaining
+    /// `β = m − 2f`. `m = None` resolves to `n − 2f` (the paper's default).
+    /// Requires `n ≥ 4*f + 3` and `2*f + 1 ≤ m ≤ n − 2*f`.
+    ///
+    /// El Mhamdi, Guerraoui, Rouault. *The Hidden Vulnerability of
+    /// Distributed Learning in Byzantium*. ICML 2018.
+    /// <https://proceedings.mlr.press/v80/mhamdi18a.html>
+    Bulyan { f: usize, m: Option<usize> },
+    /// Geometric Median via Weiszfeld iteration (Robust Federated Aggregation).
+    ///
+    /// Solves `argmin_y Σ w_i * ||y − x_i||` where `x_i` are the flattened
+    /// client weights and `w_i` are sample-count weights. Initialises at
+    /// the sample-weighted mean (FedAvg) and iterates Weiszfeld's update
+    /// `y_{k+1} = Σ (w_i x_i / d_i) / Σ (w_i / d_i)` with `d_i = ||y_k − x_i||`,
+    /// clamped to `eps` to avoid division by zero. The geometric median
+    /// has a 1/2 breakdown point — robust to up to ⌊(n−1)/2⌋ Byzantine
+    /// clients, with bounded contamination over a constant number of
+    /// iterations.
+    ///
+    /// `eps` is the numerical floor on per-client distance (also the
+    /// convergence-stopping threshold on `||y_{k+1} − y_k||`); `max_iter`
+    /// caps the Weiszfeld loop. RFA recommends a small constant
+    /// (`max_iter = 3`) — in practice the median is well-approximated
+    /// after a handful of iterations and further iterations don't change
+    /// the breakdown bound.
+    ///
+    /// Pillutla, Kakade, Harchaoui. *Robust Aggregation for Federated
+    /// Learning*. IEEE Transactions on Signal Processing, vol. 70,
+    /// pp. 1142–1154, 2022. DOI: 10.1109/TSP.2022.3153135.
+    /// <https://arxiv.org/abs/1912.13445>
+    GeometricMedian { eps: f64, max_iter: usize },
 }
 
 /// A model update from a single client, represented as named weight tensors.
@@ -94,6 +148,10 @@ pub fn aggregate<U: Borrow<ClientUpdate>>(
         Strategy::Krum { f } => krum_select(updates, *f, Some(1)),
         Strategy::MultiKrum { f, m } => krum_select(updates, *f, *m),
         Strategy::Bulyan { f, m } => bulyan(updates, *f, *m),
+        Strategy::GeometricMedian { eps, max_iter } => Ok(Aggregation {
+            weights: geometric_median(updates, *eps, *max_iter)?,
+            selected_client_ids: all_ids(),
+        }),
     }
 }
 
@@ -472,6 +530,139 @@ fn bulyan<U: Borrow<ClientUpdate>>(
         weights,
         selected_client_ids: selected,
     })
+}
+
+/// Geometric median via the Weiszfeld iteration (RFA - Pillutla et al., IEEE TSP 2022).
+///
+/// Flattens every client into a shared coordinate space (layer order taken
+/// from `updates[0]`), initialises `y` at the sample-weighted mean (the
+/// FedAvg estimate - also the closed-form L2-Steiner point), then iterates
+///
+/// ```text
+/// y' = sum(w_i * x_i / d_i) / sum(w_i / d_i),  d_i = max(eps, ||y - x_i||)
+/// ```
+///
+/// Stops at `max_iter` or when `||y' - y|| < eps`. f64 throughout for
+/// numerical stability; downcasts to f32 only at the end.
+fn geometric_median<U: Borrow<ClientUpdate>>(
+    updates: &[U],
+    eps: f64,
+    max_iter: usize,
+) -> Result<HashMap<String, Vec<f32>>, String> {
+    let n = updates.len();
+    let total_samples: usize = updates.iter().map(|u| u.borrow().num_samples).sum();
+    if total_samples == 0 {
+        return Err("Total sample count is zero".to_string());
+    }
+    if eps <= 0.0 {
+        return Err(format!("GeometricMedian requires eps > 0; got {eps}"));
+    }
+
+    // Fix layer order from the first update; all clients must match.
+    let first = updates[0].borrow();
+    let layer_names: Vec<String> = first.weights.keys().cloned().collect();
+    let layer_sizes: Vec<usize> = layer_names
+        .iter()
+        .map(|name| first.weights[name].len())
+        .collect();
+    let flat_len: usize = layer_sizes.iter().sum();
+
+    // Flatten every client into a single contiguous f64 vector. f64 to bound
+    // Weiszfeld's accumulator drift over high-dimensional sums.
+    let mut flats: Vec<Vec<f64>> = Vec::with_capacity(n);
+    for u in updates {
+        let u = u.borrow();
+        let mut flat = Vec::with_capacity(flat_len);
+        for (name, &size) in layer_names.iter().zip(&layer_sizes) {
+            let w = u
+                .weights
+                .get(name)
+                .ok_or_else(|| format!("Client update missing layer '{}'", name))?;
+            if w.len() != size {
+                return Err(format!(
+                    "Layer '{}' size mismatch: expected {}, got {}",
+                    name,
+                    size,
+                    w.len()
+                ));
+            }
+            flat.extend(w.iter().map(|&v| v as f64));
+        }
+        flats.push(flat);
+    }
+
+    let total_samples_f64 = total_samples as f64;
+    let weights: Vec<f64> = updates
+        .iter()
+        .map(|u| u.borrow().num_samples as f64 / total_samples_f64)
+        .collect();
+
+    // Sample-weighted-mean init — same anchor FedAvg would produce.
+    let mut y: Vec<f64> = vec![0.0; flat_len];
+    for (flat, &w) in flats.iter().zip(weights.iter()) {
+        for (yj, &xj) in y.iter_mut().zip(flat.iter()) {
+            *yj += w * xj;
+        }
+    }
+
+    // Weiszfeld loop. Reuse scratch buffers across iterations.
+    let mut y_new: Vec<f64> = vec![0.0; flat_len];
+    let mut dists: Vec<f64> = vec![0.0; n];
+    for _ in 0..max_iter {
+        for (i, flat) in flats.iter().enumerate() {
+            let sq: f64 = y
+                .iter()
+                .zip(flat.iter())
+                .map(|(&yj, &xj)| {
+                    let d = yj - xj;
+                    d * d
+                })
+                .sum();
+            dists[i] = sq.sqrt().max(eps);
+        }
+
+        let denom: f64 = weights.iter().zip(dists.iter()).map(|(&w, &d)| w / d).sum();
+        if denom <= 0.0 {
+            // Pathological: every client coincides with `y`. Already at a
+            // fixed point — leave `y` unchanged.
+            break;
+        }
+
+        // Reset y_new in place rather than allocating each iteration.
+        for v in y_new.iter_mut() {
+            *v = 0.0;
+        }
+        for ((flat, &w), &d) in flats.iter().zip(weights.iter()).zip(dists.iter()) {
+            let coef = (w / d) / denom;
+            for (yj, &xj) in y_new.iter_mut().zip(flat.iter()) {
+                *yj += coef * xj;
+            }
+        }
+
+        let diff_sq: f64 = y
+            .iter()
+            .zip(y_new.iter())
+            .map(|(&a, &b)| {
+                let d = a - b;
+                d * d
+            })
+            .sum();
+        std::mem::swap(&mut y, &mut y_new);
+        if diff_sq.sqrt() < eps {
+            break;
+        }
+    }
+
+    // Unflatten back to layer-keyed map.
+    let mut global: HashMap<String, Vec<f32>> = HashMap::with_capacity(layer_names.len());
+    let mut offset = 0;
+    for (name, &size) in layer_names.iter().zip(&layer_sizes) {
+        let chunk: Vec<f32> = y[offset..offset + size].iter().map(|&v| v as f32).collect();
+        global.insert(name.clone(), chunk);
+        offset += size;
+    }
+
+    Ok(global)
 }
 
 #[cfg(test)]
@@ -884,5 +1075,130 @@ mod tests {
             "coord 1 drifted from honest cluster: got {}",
             w[1]
         );
+    }
+
+    // ----- Geometric Median (RFA, Pillutla et al. IEEE TSP 2022) -----
+
+    fn gm() -> Strategy {
+        Strategy::GeometricMedian {
+            eps: 1e-6,
+            max_iter: 32, // generous to make convergence-quality tests crisp
+        }
+    }
+
+    #[test]
+    fn geometric_median_single_client_returns_that_client() {
+        let u = make_update(7, &[("w", vec![1.0, -2.0, 3.5])]);
+        let result = aggregate(&[u], &gm()).unwrap();
+        let w = &result.weights["w"];
+        for (a, b) in w.iter().zip([1.0f32, -2.0, 3.5].iter()) {
+            assert!((a - b).abs() < 1e-5, "got {a}, want {b}");
+        }
+        assert_eq!(result.selected_client_ids, vec![0]);
+    }
+
+    #[test]
+    fn geometric_median_two_equal_clients_lands_on_segment() {
+        // The geometric median of two equal-weight points is undefined on
+        // the *interior* but well-defined as anywhere on the segment. Our
+        // Weiszfeld init at the sample-weighted mean lands at the midpoint
+        // and stays there.
+        let u0 = make_update(1, &[("w", vec![0.0, 0.0])]);
+        let u1 = make_update(1, &[("w", vec![10.0, 4.0])]);
+        let result = aggregate(&[u0, u1], &gm()).unwrap();
+        let w = &result.weights["w"];
+        assert!((w[0] - 5.0).abs() < 1e-3, "got {}", w[0]);
+        assert!((w[1] - 2.0).abs() < 1e-3, "got {}", w[1]);
+    }
+
+    #[test]
+    fn geometric_median_three_collinear_clients_picks_middle() {
+        // Geometric median of three points equals the L1-median; on a
+        // line with equal weights that's the middle point. (Same shape as
+        // the univariate case.)
+        let u0 = make_update(1, &[("w", vec![1.0])]);
+        let u1 = make_update(1, &[("w", vec![5.0])]);
+        let u2 = make_update(1, &[("w", vec![2.0])]);
+        let result = aggregate(&[u0, u1, u2], &gm()).unwrap();
+        // Sorted: [1, 2, 5] → median = 2.
+        assert!(
+            (result.weights["w"][0] - 2.0).abs() < 1e-3,
+            "got {}",
+            result.weights["w"][0]
+        );
+    }
+
+    #[test]
+    fn geometric_median_excludes_byzantine_outlier() {
+        // 4 honest clients clustered near [1, 1], 1 outlier at [100, 100].
+        // The geometric median has a 1/2 breakdown bound, so 1/5 contamination
+        // is well within tolerance — result should sit near the cluster, not
+        // the centroid (which a plain mean would deliver around [21, 21]).
+        let mut clients: Vec<ClientUpdate> = [1.0f32, 1.05, 0.95, 1.02]
+            .iter()
+            .map(|&v| make_update(1, &[("w", vec![v, v])]))
+            .collect();
+        clients.push(make_update(1, &[("w", vec![100.0, 100.0])]));
+        let result = aggregate(&clients, &gm()).unwrap();
+        let w = &result.weights["w"];
+        // Honest cluster's centroid is ~1.0 — geometric median should be
+        // close. Slack of 0.5 is generous; the contamination bound from
+        // RFA puts the actual deviation ≤ 0.05 here.
+        assert!(
+            (w[0] - 1.0).abs() < 0.5,
+            "Byzantine outlier moved coord 0 too far: got {}",
+            w[0]
+        );
+        assert!(
+            (w[1] - 1.0).abs() < 0.5,
+            "Byzantine outlier moved coord 1 too far: got {}",
+            w[1]
+        );
+    }
+
+    #[test]
+    fn geometric_median_sample_weighting_pulls_toward_majority_voice() {
+        // Three clients along a line with grossly different sample counts.
+        // Geometric median weights each client by num_samples / total, so
+        // the heavily-sampled client dominates the median location.
+        let u0 = make_update(100, &[("w", vec![0.0])]);
+        let u1 = make_update(1, &[("w", vec![10.0])]);
+        let u2 = make_update(1, &[("w", vec![20.0])]);
+        let result = aggregate(&[u0, u1, u2], &gm()).unwrap();
+        // u0 carries ~98% of the weight → median sits near 0.
+        assert!(
+            result.weights["w"][0].abs() < 0.5,
+            "weighted median drifted from majority voice: got {}",
+            result.weights["w"][0]
+        );
+    }
+
+    #[test]
+    fn geometric_median_rejects_zero_total_samples() {
+        let u = make_update(0, &[("w", vec![1.0])]);
+        let result = aggregate(&[u], &gm());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn geometric_median_rejects_invalid_eps() {
+        let u = make_update(1, &[("w", vec![1.0])]);
+        let result = aggregate(
+            &[u],
+            &Strategy::GeometricMedian {
+                eps: 0.0,
+                max_iter: 3,
+            },
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn geometric_median_missing_layer_returns_error() {
+        let u0 = make_update(1, &[("a", vec![1.0]), ("b", vec![1.0])]);
+        let u1 = make_update(1, &[("a", vec![1.0])]); // missing "b"
+        let u2 = make_update(1, &[("a", vec![1.0]), ("b", vec![1.0])]);
+        let result = aggregate(&[u0, u1, u2], &gm());
+        assert!(result.is_err());
     }
 }
