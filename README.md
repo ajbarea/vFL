@@ -23,15 +23,27 @@ VelocityFL provides:
 ## Current capabilities ✅
 
 ### Aggregation strategies
-- `FedAvg`
-- `FedProx`
-- `FedMedian`
 
-### Built-in attack simulations
-- `model_poisoning`
-- `sybil_nodes`
-- `gaussian_noise`
-- `label_flipping`
+All real implementations in `vfl-core/src/strategy.rs` with paper-cited
+algorithms and unit-test fixtures derived from each paper.
+
+- `FedAvg` — sample-weighted mean (McMahan et al., AISTATS 2017)
+- `FedProx` — FedAvg aggregation + proximal term in client training (Li et al., MLSys 2020)
+- `FedMedian` — coordinate-wise median (Yin et al., ICML 2018)
+- `TrimmedMean` — drop-k extremes per coordinate (Yin et al., ICML 2018)
+- `Krum` — single closest by Krum score (Blanchard et al., NeurIPS 2017)
+- `MultiKrum` — top-m by Krum score (El Mhamdi et al., ICML 2018)
+- `Bulyan` — Multi-Krum → trimmed-mean composition (El Mhamdi et al., ICML 2018)
+- `GeometricMedian` — RFA Weiszfeld iteration, sample-weighted (Pillutla et al., IEEE TSP 2022)
+
+### Round-level attacks (`velocity.attacks`)
+- `model_poisoning` — sign-flip a fraction of one client's weights
+- `sybil_nodes` — inject `count` synthetic Byzantine clients
+- `gaussian_noise` — add N(0, σ²) noise to global weights
+
+### Data-pipeline attacks (`velocity.data_attacks`)
+- `apply_label_flipping` — bijective derangement of the label space (Biggio et al., ICML 2012)
+- `apply_targeted_label_flipping` — source→target with `flip_ratio` (Tolpegin et al., ESORICS 2020)
 
 ---
 
@@ -50,15 +62,17 @@ uv run maturin develop
 ### 2) Run a minimal Python example
 
 The fastest path is the built-in simulator — useful for checking the
-install and the attack surface before wiring up real data:
+install and the attack surface before wiring up real data. The simulator
+generates synthetic client updates (it tests round plumbing, not actual
+training); for end-to-end FL on real data, see step 3 below.
 
 ```python
-from velocity import VelocityServer, Strategy
+from velocity import VelocityServer, FedAvg
 
 server = VelocityServer(
     model_id="demo/model",
     dataset="demo/dataset",  # record-keeping string; real loading is below
-    strategy=Strategy.FedAvg,
+    strategy=FedAvg(),
 )
 
 server.simulate_attack("gaussian_noise", intensity=0.05)

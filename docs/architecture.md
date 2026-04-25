@@ -58,15 +58,17 @@ vFL/
 ├── vfl-core/               # Rust crate
 │   ├── src/
 │   │   ├── lib.rs          # PyO3 module definition
-│   │   ├── strategy.rs     # FedAvg / FedProx / FedMedian / TrimmedMean / Krum / MultiKrum
-│   │   ├── orchestrator.rs # round state + attack dispatch
-│   │   └── security.rs     # attack types + simulations (model_poisoning, sybil_nodes, gaussian_noise, label_flipping)
+│   │   ├── strategy.rs     # FedAvg / FedProx / FedMedian / TrimmedMean / Krum / MultiKrum / Bulyan
+│   │   ├── orchestrator.rs # round state + round-level attack dispatch
+│   │   └── security.rs     # round-level attack kernels (model_poisoning, sybil_nodes, gaussian_noise)
 │   └── Cargo.toml
 ├── python/velocity/
 │   ├── __init__.py         # re-exports VelocityServer, Strategy
 │   ├── server.py           # orchestrator wrapper + fallback
-│   ├── strategy.py         # Python-side enum
-│   ├── attacks.py          # AttackResult dataclass, VALID_ATTACKS
+│   ├── strategy.py         # Python-side strategy dataclasses
+│   ├── attacks.py          # AttackResult, VALID_ATTACKS (round-level)
+│   ├── data_attacks.py     # data-pipeline attacks (label flipping, etc.)
+│   ├── training.py         # local SGD + FedProx proximal term + label_attack hook
 │   ├── flows.py            # Prefect flow wrappers
 │   └── cli.py              # Typer app
 ├── tests/                  # pytest suite
