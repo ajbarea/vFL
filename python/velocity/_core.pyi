@@ -61,7 +61,6 @@ class Orchestrator:
         attack_type: str,
         intensity: float = ...,
         count: int = ...,
-        fraction: float = ...,
     ) -> None: ...
     def run_round(
         self,

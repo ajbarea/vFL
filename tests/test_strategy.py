@@ -9,6 +9,7 @@ from velocity.strategy import (
     FedAvg,
     FedMedian,
     FedProx,
+    GeometricMedian,
     Krum,
     MultiKrum,
     TrimmedMean,
@@ -27,6 +28,7 @@ def test_all_strategies_tuple_covers_sum_type():
         "Krum",
         "MultiKrum",
         "Bulyan",
+        "GeometricMedian",
     }
 
 
@@ -94,8 +96,18 @@ def test_parse_strategy_passthrough():
         Krum(f=1),
         MultiKrum(f=1, m=2),
         Bulyan(f=1, m=5),
+        GeometricMedian(),
+        GeometricMedian(eps=1e-8, max_iter=8),
     ):
         assert parse_strategy(s) == s
+
+
+def test_geometric_median_defaults_match_rfa_paper():
+    # Pillutla et al. recommend a small constant max_iter; eps is the
+    # numerical-floor / convergence threshold.
+    gm = GeometricMedian()
+    assert gm.eps == 1e-6
+    assert gm.max_iter == 3
 
 
 def test_parse_strategy_errors():

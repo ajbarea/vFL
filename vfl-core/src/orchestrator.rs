@@ -129,17 +129,6 @@ impl Orchestrator {
                         crate::security::simulate_gaussian_noise(&mut self.global_weights, std_dev);
                     attack_results.push(result);
                 }
-                crate::security::AttackType::LabelFlipping { fraction } => {
-                    attack_results.push(AttackResult {
-                        attack_type: "label_flipping".to_string(),
-                        clients_affected: (client_updates.len() as f64 * fraction) as usize,
-                        severity: fraction,
-                        description: format!(
-                            "Label flipping on {:.0}% of clients",
-                            fraction * 100.0
-                        ),
-                    });
-                }
             }
         }
 

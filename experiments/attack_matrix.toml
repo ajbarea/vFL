@@ -1,7 +1,11 @@
-# Full attack × strategy matrix — stress-test surface.
+# Round-level attack × strategy matrix — stress-test surface.
 #
-# Runs FedAvg and FedMedian against every supported attack type at default
-# parameters. Produces a 2 * (1 baseline + 4 attacks) = 10-row comparison.md.
+# Runs FedAvg and FedMedian against every supported round-level attack type
+# at default parameters. Produces a 2 * (1 baseline + 3 attacks) = 8-row
+# comparison.md. For data-pipeline attacks (label flipping etc.) see
+# `velocity.data_attacks` and the `mnist_label_flipping_vs_robust.py`
+# nightly demo — those operate on labels in the data loader and are not
+# expressible through the round-level `runs.attacks` schema.
 #
 #   velocity sweep experiments/attack_matrix.toml
 
@@ -39,13 +43,6 @@ type      = "gaussian_noise"
 intensity = 0.2
 
 [[runs]]
-name     = "fedavg-label-flip"
-strategy = "FedAvg"
-[[runs.attacks]]
-type     = "label_flipping"
-fraction = 0.3
-
-[[runs]]
 name     = "fedmedian-clean"
 strategy = "FedMedian"
 
@@ -69,10 +66,3 @@ strategy = "FedMedian"
 [[runs.attacks]]
 type      = "gaussian_noise"
 intensity = 0.2
-
-[[runs]]
-name     = "fedmedian-label-flip"
-strategy = "FedMedian"
-[[runs.attacks]]
-type     = "label_flipping"
-fraction = 0.3

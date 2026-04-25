@@ -1,7 +1,12 @@
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
-/// Supported attack types for resilience testing.
+/// Round-level attacks the orchestrator applies during a federated round.
+///
+/// These operate on weights and client rosters — the data the Rust core
+/// actually sees. Data-pipeline attacks (label flipping, backdoor triggers,
+/// token replacement) live on the Python side in `velocity.data_attacks`
+/// because the Rust core never sees raw labels or input features.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum AttackType {
     /// Corrupt a fraction of client model weights.
@@ -10,8 +15,6 @@ pub enum AttackType {
     SybilNodes { count: usize },
     /// Gaussian noise added to the global model (data-agnostic perturbation).
     GaussianNoise { std_dev: f64 },
-    /// Label-flipping: flip labels for a target fraction of clients.
-    LabelFlipping { fraction: f64 },
 }
 
 /// Result of running an attack simulation.

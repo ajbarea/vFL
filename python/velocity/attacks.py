@@ -31,7 +31,8 @@ class AttackResult:
         )
 
 
-# Valid attack identifiers understood by the Rust engine.
-VALID_ATTACKS: frozenset[str] = frozenset(
-    {"model_poisoning", "sybil_nodes", "gaussian_noise", "label_flipping"}
-)
+# Round-level attack identifiers understood by the Rust engine. These
+# operate on weights/client rosters during a round; data-pipeline attacks
+# (label flipping etc.) live in :mod:`velocity.data_attacks` because the
+# Rust core never sees raw labels or input features.
+VALID_ATTACKS: frozenset[str] = frozenset({"model_poisoning", "sybil_nodes", "gaussian_noise"})

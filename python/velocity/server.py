@@ -15,6 +15,7 @@ from velocity.strategy import (
     FedAvg,
     FedMedian,
     FedProx,
+    GeometricMedian,
     Krum,
     MultiKrum,
     Strategy,
@@ -162,9 +163,13 @@ class VelocityServer:
         *,
         intensity: float = 0.1,
         count: int = 1,
-        fraction: float = 0.1,
     ) -> None:
-        """Register an attack to be simulated in the next training round.
+        """Register a round-level attack for the next training round.
+
+        Round-level attacks operate on weights and client rosters during
+        aggregation. For data-pipeline attacks (label flipping etc.) use
+        :mod:`velocity.data_attacks` directly in your data loader — the
+        Rust core never sees raw labels and shouldn't pretend to.
 
         This can be called before or after :meth:`run`.  When called before
         :meth:`run`, the attack is queued and applied to the first round that
@@ -172,13 +177,11 @@ class VelocityServer:
 
         Args:
             attack_type: One of ``"model_poisoning"``, ``"sybil_nodes"``,
-                         ``"gaussian_noise"``, ``"label_flipping"``.
+                         ``"gaussian_noise"``.
             intensity: Magnitude of the attack ∈ [0, 1].
                        Used by ``model_poisoning`` and ``gaussian_noise``.
             count: Number of Byzantine clients to inject.
                    Used by ``sybil_nodes``.
-            fraction: Fraction of clients to affect.
-                      Used by ``label_flipping``.
 
         Raises:
             ValueError: If *attack_type* is not recognised.
@@ -192,7 +195,6 @@ class VelocityServer:
             "attack_type": attack_type,
             "intensity": intensity,
             "count": count,
-            "fraction": fraction,
         }
 
         if self._orchestrator is not None:
@@ -204,7 +206,6 @@ class VelocityServer:
             "model_poisoning": f"intensity={intensity}",
             "sybil_nodes": f"count={count}",
             "gaussian_noise": f"std_dev={intensity}",
-            "label_flipping": f"fraction={fraction}",
         }[attack_type]
         logger.info("Attack registered: %s (%s)", attack_type, log_detail)
 
@@ -274,6 +275,8 @@ class VelocityServer:
             return _rust.Strategy.multi_krum(s.f, s.m)
         if isinstance(s, Bulyan):
             return _rust.Strategy.bulyan(s.f, s.m)
+        if isinstance(s, GeometricMedian):
+            return _rust.Strategy.geometric_median(s.eps, s.max_iter)
         raise ValueError(f"Unsupported strategy: {s!r}")
 
     def _run_single_round(self) -> dict[str, Any]:

@@ -66,9 +66,9 @@ def test_simulate_attack_queued_before_run(small_server):
 
 
 def test_simulate_attack_all_valid_types(small_server):
-    for attack in ["model_poisoning", "sybil_nodes", "gaussian_noise", "label_flipping"]:
+    for attack in ["model_poisoning", "sybil_nodes", "gaussian_noise"]:
         small_server.simulate_attack(attack)
-    # All four registered attacks should not raise
+    # All three round-level attacks should register without error.
     summaries = small_server.run(min_clients=1, rounds=1)
     assert summaries
 

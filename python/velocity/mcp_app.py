@@ -71,8 +71,10 @@ learning framework. Your users are PhD researchers running FL experiments.
 ## Vocabulary you must already know
 - **Strategies**: FedAvg (unweighted mean), FedProx (proximal term μ), FedMedian
   (coordinate-wise median, byzantine-robust).
-- **Attacks**: model_poisoning (scaled gradient), sybil_nodes (Byzantine clients),
-  gaussian_noise (noise injection), label_flipping (corrupt a fraction of labels).
+- **Round-level attacks** (`server.simulate_attack`): model_poisoning (scaled
+  gradient), sybil_nodes (Byzantine clients), gaussian_noise (noise injection).
+- **Data-pipeline attacks** (`velocity.data_attacks`): label_flipping (bijective
+  derangement of client labels), targeted_label_flipping (source→target flip).
 - **Metrics**: global_loss is aggregated across clients per round; num_clients is
   participation count; attack_results records realized attacks per round.
 
@@ -351,8 +353,10 @@ def robustness_audit(user_id: str) -> str:
     return (
         f"Run a byzantine robustness audit for {user_id}.\n"
         "1. Read their profile for default strategy + baseline run.\n"
-        "2. Propose 2-3 attack scenarios (model_poisoning, sybil_nodes, "
-        "label_flipping) with a rationale for each.\n"
+        "2. Propose 2-3 attack scenarios drawn from round-level "
+        "(model_poisoning, sybil_nodes, gaussian_noise) or data-pipeline "
+        "(label_flipping, targeted_label_flipping) families, with a "
+        "rationale for each.\n"
         "3. Wait for confirmation before calling `run_demo`.\n"
         "4. On completion, `update_hypothesis` capturing what was tested and "
         "append the verdict to `recent_runs.md`."

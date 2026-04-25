@@ -132,15 +132,18 @@ boundary rather than copying the wrapper.
 
 ## Attacks
 
-Current vFL registry (`security::AttackType`): `ModelPoisoning`, `SybilNodes`,
-`GaussianNoise`, `LabelFlipping`. `LabelFlipping` is a stub — it records an
-attack result but doesn't actually mutate client data. Items below come from
-`phalanx-fl/intellifl/attack_utils/{poisoning,weight_poisoning}.py`, each with
-paper citations already documented in-place there.
+Current vFL split (post-restructure):
 
-- **Targeted label flipping** — source-class → target-class with `flip_ratio`.
-  Models real adversary goals (e.g. "stop sign → speed limit"), more useful
-  than bijective permutation. Should replace the current label-flipping stub.
+- **Round-level** (`security::AttackType`): `ModelPoisoning`, `SybilNodes`,
+  `GaussianNoise` — operate on weights / client rosters during a round.
+- **Data-pipeline** (`velocity.data_attacks`): `apply_label_flipping`
+  (bijective derangement, Biggio et al. ICML 2012; Tolpegin et al. ESORICS
+  2020), `apply_targeted_label_flipping` (source→target with flip_ratio).
+
+Both families are honest implementations now; the prior `LabelFlipping`
+no-op was removed once the data-pipeline path landed. Items below come from
+`phalanx-fl/intellifl/attack_utils/{poisoning,weight_poisoning}.py`, each
+with paper citations already documented in-place there.
 - **Backdoor trigger / BadNets** (Gu et al., 2017) — pixel-pattern trigger
   stamped onto a fraction of images + relabel to target class. The canonical
   FL backdoor attack; phalanx has square/cross patterns with auto-contrast.

@@ -92,6 +92,17 @@ impl PyStrategy {
         PyStrategy(strategy::Strategy::Bulyan { f, m })
     }
 
+    /// Geometric Median via Weiszfeld iteration (RFA, Pillutla et al.
+    /// IEEE TSP 2022). Sample-weighted; 1/2 breakdown point. ``eps`` is
+    /// the numerical-floor / convergence threshold; ``max_iter`` caps the
+    /// Weiszfeld loop (paper recommends a small constant — 3 is a good
+    /// default).
+    #[staticmethod]
+    #[pyo3(signature = (eps=1e-6, max_iter=3))]
+    fn geometric_median(eps: f64, max_iter: usize) -> Self {
+        PyStrategy(strategy::Strategy::GeometricMedian { eps, max_iter })
+    }
+
     fn __repr__(&self) -> String {
         format!("{:?}", self.0)
     }
@@ -235,31 +246,28 @@ impl PyOrchestrator {
         PyOrchestrator(orchestrator::Orchestrator::new(config, &layer_shapes))
     }
 
-    /// Register an attack to be simulated in the next round.
+    /// Register a round-level attack to be simulated in the next round.
+    ///
+    /// These attacks operate on weights and client rosters — what the
+    /// Rust core sees. For data-pipeline attacks like label-flipping,
+    /// use ``velocity.data_attacks`` on the Python side.
     ///
     /// Args:
     ///     attack_type: One of ``"model_poisoning"``, ``"sybil_nodes"``,
-    ///                  ``"gaussian_noise"``, ``"label_flipping"``.
+    ///                  ``"gaussian_noise"``.
     ///     intensity: For ``model_poisoning`` / ``gaussian_noise`` — magnitude ∈ [0, 1].
     ///     count: For ``sybil_nodes`` — number of Byzantine clients to inject.
-    ///     fraction: For ``label_flipping`` — fraction of clients to affect.
-    #[pyo3(signature = (attack_type, intensity=0.1, count=1, fraction=0.1))]
-    fn register_attack(
-        &mut self,
-        attack_type: &str,
-        intensity: f64,
-        count: usize,
-        fraction: f64,
-    ) -> PyResult<()> {
+    #[pyo3(signature = (attack_type, intensity=0.1, count=1))]
+    fn register_attack(&mut self, attack_type: &str, intensity: f64, count: usize) -> PyResult<()> {
         let attack = match attack_type {
             "model_poisoning" => security::AttackType::ModelPoisoning { intensity },
             "sybil_nodes" => security::AttackType::SybilNodes { count },
             "gaussian_noise" => security::AttackType::GaussianNoise { std_dev: intensity },
-            "label_flipping" => security::AttackType::LabelFlipping { fraction },
             other => {
                 return Err(PyRuntimeError::new_err(format!(
                     "Unknown attack type: '{other}'. Valid types: model_poisoning, \
-                     sybil_nodes, gaussian_noise, label_flipping"
+                     sybil_nodes, gaussian_noise (label-flipping lives in \
+                     velocity.data_attacks on the Python side)"
                 )))
             }
         };
