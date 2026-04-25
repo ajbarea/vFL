@@ -45,8 +45,11 @@ Expected output:
 FedAvg
 FedProx
 FedMedian
+TrimmedMean
 Krum
 MultiKrum
+Bulyan
+GeometricMedian
 ```
 
 ## 3. Your first round — Python
@@ -129,5 +132,5 @@ Run `make` with no arguments for the full target list.
 - [CLI Reference](cli.md) — every flag, every command.
 - [Architecture](architecture.md) — how Rust, PyO3, and Python fit together.
 - [Configuration](configuration.md) — every field on `VelocityServer`.
-- [Strategies](strategies.md) — when to reach for FedAvg, FedProx, FedMedian, TrimmedMean, Krum, or MultiKrum.
+- [Strategies](strategies.md) — when to reach for FedAvg, FedProx, FedMedian, TrimmedMean, Krum, MultiKrum, Bulyan, or GeometricMedian.
 - [Attacks](attacks.md) — adversarial simulations baked into the core.

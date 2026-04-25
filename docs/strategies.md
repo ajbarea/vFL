@@ -1,6 +1,6 @@
 # Strategies
 
-VelocityFL ships six aggregation strategies. All six are implemented in Rust and exposed as frozen Python dataclasses in `velocity.strategy`. Pick one based on your threat model and client heterogeneity.
+VelocityFL ships eight aggregation strategies. All eight are implemented in Rust and exposed as frozen Python dataclasses in `velocity.strategy`. Pick one based on your threat model and client heterogeneity.
 
 ## Decision guide
 
@@ -12,11 +12,16 @@ VelocityFL ships six aggregation strategies. All six are implemented in Rust and
 | Untrusted clients, up to `k` compromised per coordinate, want averaged survivors | **`TrimmedMean(k=…)`** |
 | Untrusted clients, up to `f` compromised, want a single winner | **`Krum(f=…)`** |
 | Untrusted clients, up to `f` compromised, want to average `m` survivors | **`MultiKrum(f=…, m=…)`** |
+| Untrusted clients, up to `f` compromised, want the strongest distance-based defense | **`Bulyan(f=…, m=…)`** |
+| Untrusted clients, up to ⌊(n−1)/2⌋ compromised, want geometric (not coordinate-wise) robustness | **`GeometricMedian()`** |
 
-All six are value objects: compare with `==`, safe to hash, safe to share between threads.
+All eight are value objects: compare with `==`, safe to hash, safe to share between threads.
 
 ```python
-from velocity import FedAvg, FedProx, FedMedian, TrimmedMean, Krum, MultiKrum
+from velocity import (
+    FedAvg, FedProx, FedMedian, TrimmedMean,
+    Krum, MultiKrum, Bulyan, GeometricMedian,
+)
 
 FedAvg() == FedAvg()                  # True
 FedProx(mu=0.01) != FedProx(mu=0.1)   # True
@@ -167,6 +172,62 @@ server = VelocityServer(model_id=..., dataset=..., strategy=MultiKrum(f=2, m=5))
 
 ---
 
+## `Bulyan`
+
+Compose Multi-Krum with a coordinate-wise trimmed mean over the survivors. From El Mhamdi et al. (2018, ICML — *The Hidden Vulnerability of Distributed Learning in Byzantium*, Algorithm 2).
+
+```text
+Phase 1:  S = top-m clients by Multi-Krum score  (m defaults to n − 2f)
+Phase 2:  for each coordinate i:
+            sorted = sort(w_i for client in S)
+            w_{t+1}[i] = mean(sorted[f : m − f])    # uniform mean of m − 2f survivors
+```
+
+**Use when** you want the strongest Byzantine guarantee in the distance-based family. Bulyan inherits Multi-Krum's outlier suppression in Phase 1 and the trimmed-mean's per-coordinate robustness in Phase 2 — bounded contamination of `O(1/√d)` per coordinate vs Multi-Krum's `O(√d)` (the *hidden vulnerability* the paper names). Costs roughly Multi-Krum + TrimmedMean per round.
+
+| Field | Default | Constraint |
+|---|---|---|
+| `f` | — | `n ≥ 4f + 3`. Strictly tighter than Multi-Krum's `n ≥ 2f + 3`. |
+| `m` | `n − 2f` | Must satisfy `2f + 1 ≤ m ≤ n − 2f`. `None` uses the paper's default. |
+
+```python
+from velocity import VelocityServer, Bulyan
+server = VelocityServer(model_id=..., dataset=..., strategy=Bulyan(f=1, m=None))
+# Needs at least 4*1 + 3 = 7 clients per round.
+```
+
+> **Cost factor** — Bulyan composes the two slowest robust kernels and lands at their sum minus a small subset discount. At the `large` (10M-param, 10-client) tier it costs ~35× Rust FedAvg in [`docs/benchmarks.md`](benchmarks.md). Worth it when you need the tightest distance-based breakdown bound; otherwise prefer Multi-Krum or GeometricMedian.
+
+---
+
+## `GeometricMedian`
+
+Solve `argmin_y Σ w_i · ‖y − x_i‖` over the flattened client weight vectors using the Weiszfeld iteration. From Pillutla, Kakade, Harchaoui (2022, IEEE TSP — *Robust Aggregation for Federated Learning*, the RFA algorithm).
+
+```text
+Initialise:  y_0 = sample-weighted mean (FedAvg estimate)
+Iterate:     d_i      = max(eps, ‖y_k − x_i‖)
+             y_{k+1}  = Σ (w_i · x_i / d_i) / Σ (w_i / d_i)
+Stop:        ‖y_{k+1} − y_k‖ < eps  OR  k ≥ max_iter
+```
+
+**Use when** you want geometric (multivariate) robustness rather than coordinate-wise. Coordinate-wise defenses (`FedMedian`, `TrimmedMean`) are robust per-coordinate; the geometric median is robust *as a vector*, so coordinated low-magnitude attacks that hide inside per-coordinate distributions get absorbed instead of rejected. **1/2 breakdown point** — survives up to ⌊(n−1)/2⌋ Byzantine clients with bounded contamination over a constant number of iterations. Sample-weighted (the Weiszfeld update keeps the FedAvg-style `w_i = num_samples / total` weighting).
+
+| Field | Default | Effect |
+|---|---|---|
+| `eps` | `1e-6` | Numerical floor on per-client distance and convergence threshold on `‖y_{k+1} − y_k‖`. Smaller = more iterations near a fixed point. |
+| `max_iter` | `3` | Cap on the Weiszfeld loop. Pillutla et al. recommend a small constant — 3 is a good default; further iterations don't change the breakdown bound. |
+
+```python
+from velocity import VelocityServer, GeometricMedian
+server = VelocityServer(model_id=..., dataset=..., strategy=GeometricMedian())
+# Defaults to eps=1e-6, max_iter=3 — matches the RFA paper's recommendation.
+```
+
+> **Empirical edge against label-flipping** — `examples/mnist_label_flipping_vs_robust.py` runs FedAvg / Multi-Krum / FedMedian / GeometricMedian head-to-head with 2 of 10 clients label-flipped under Dirichlet(α=1.0). All three robust aggregators recover most of the attack damage; GeometricMedian narrowly tops the matrix. The new nightly demo asserts the best robust aggregator beats FedAvg by ≥ 0.05 — exactly the "no defense pinned, data picks the winner" framing that respects the literature's known limitation: distance-based defenses degrade against label-flipping in heavy non-IID settings.
+
+---
+
 ## CLI shorthand
 
 The CLI accepts `Name` for parameter-free strategies and `Name:key=value[,key=value]` for the parameterised ones:
@@ -177,6 +238,8 @@ velocity run  --strategy FedProx:mu=0.05     --model-id demo/m --dataset demo/d
 velocity run  --strategy TrimmedMean:k=1     --model-id demo/m --dataset demo/d --min-clients 3
 velocity run  --strategy Krum:f=2            --model-id demo/m --dataset demo/d --min-clients 7
 velocity run  --strategy MultiKrum:f=2,m=5   --model-id demo/m --dataset demo/d --min-clients 7
+velocity run  --strategy Bulyan:f=1           --model-id demo/m --dataset demo/d --min-clients 7
+velocity run  --strategy GeometricMedian      --model-id demo/m --dataset demo/d
 velocity sweep --strategies FedAvg,Krum:f=1  --rounds 5
 ```
 

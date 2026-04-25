@@ -107,7 +107,7 @@ hide:
       <a href="strategies/" class="feature-card" style="--card-accent: #d8b4fe">
         <span class="feature-icon material-symbols-outlined">hub</span>
         <div class="feature-name">Strategies</div>
-        <p>FedAvg, FedProx, FedMedian, TrimmedMean, Krum, Multi-Krum &mdash; and where to add your own.</p>
+        <p>FedAvg, FedProx, FedMedian, TrimmedMean, Krum, Multi-Krum, Bulyan, GeometricMedian &mdash; and where to add your own.</p>
       </a>
       <a href="attacks/" class="feature-card" style="--card-accent: #e9d5ff">
         <span class="feature-icon material-symbols-outlined">bug_report</span>

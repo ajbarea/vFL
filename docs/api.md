@@ -40,10 +40,13 @@ See [Configuration](configuration.md) for field semantics and defaults.
 
 ### `velocity.Strategy`
 
-Sum type over six frozen dataclasses — parameters live on the instance, not on a separate config surface.
+Sum type over eight frozen dataclasses — parameters live on the instance, not on a separate config surface.
 
 ```python
-Strategy = FedAvg | FedProx | FedMedian | TrimmedMean | Krum | MultiKrum
+Strategy = (
+    FedAvg | FedProx | FedMedian | TrimmedMean
+    | Krum | MultiKrum | Bulyan | GeometricMedian
+)
 
 @dataclass(frozen=True)
 class FedAvg: ...
@@ -62,17 +65,30 @@ class Krum:
 class MultiKrum:
     f: int
     m: int | None = None
+@dataclass(frozen=True)
+class Bulyan:
+    f: int
+    m: int | None = None
+@dataclass(frozen=True)
+class GeometricMedian:
+    eps: float = 1e-6
+    max_iter: int = 3
 ```
 
-All six are frozen, hashable, and compare by value. `ALL_STRATEGIES` is a tuple of the six classes (useful for CLI/`strategies` subcommand enumeration).
+All eight are frozen, hashable, and compare by value. `ALL_STRATEGIES` is a tuple of the eight classes (useful for CLI/`strategies` subcommand enumeration).
 
 ```python
-from velocity import FedAvg, FedProx, Krum, MultiKrum, parse_strategy
+from velocity import (
+    FedAvg, FedProx, Krum, MultiKrum, Bulyan, GeometricMedian,
+    parse_strategy,
+)
 
-parse_strategy("FedAvg")                       == FedAvg()
-parse_strategy("FedProx")                      == FedProx()
-parse_strategy({"type": "Krum", "f": 2})       == Krum(f=2)
-parse_strategy({"type": "MultiKrum", "f": 1})  == MultiKrum(f=1, m=None)
+parse_strategy("FedAvg")                                == FedAvg()
+parse_strategy("FedProx")                               == FedProx()
+parse_strategy({"type": "Krum", "f": 2})                == Krum(f=2)
+parse_strategy({"type": "MultiKrum", "f": 1})           == MultiKrum(f=1, m=None)
+parse_strategy({"type": "Bulyan", "f": 1})              == Bulyan(f=1, m=None)
+parse_strategy("GeometricMedian")                       == GeometricMedian()
 ```
 
 See [Strategies](strategies.md) for semantics and decision guide.
