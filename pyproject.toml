@@ -67,6 +67,21 @@ dev = [
 [project.scripts]
 velocity = "velocity.cli:app"
 
+# Route torch + torchvision through PyTorch's CPU-only wheel index. Avoids
+# pulling ~2 GB of NVIDIA CUDA wheels (cublas, cudnn, cufft, cusolver, nccl,
+# triton, etc.) on CPU-only CI runners and on local CPU dev machines. The
+# `explicit = true` flag scopes this index to packages listed in
+# `tool.uv.sources` -- everything else still resolves from PyPI.
+# https://docs.astral.sh/uv/guides/integration/pytorch/#using-a-pytorch-index
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchvision = [{ index = "pytorch-cpu" }]
+
 [tool.maturin]
 manifest-path = "vfl-core/Cargo.toml"
 python-source = "python"
