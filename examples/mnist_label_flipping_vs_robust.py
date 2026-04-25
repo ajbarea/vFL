@@ -78,7 +78,7 @@ NUM_COMPROMISED = 2
 COMPROMISED_IDS = (0, 1)
 NUM_CLASSES = 10
 ALPHA = 1.0  # Dirichlet concentration -- mild non-IID, the regime where the
-             # literature shows defenses can plausibly work
+# literature shows defenses can plausibly work
 ROUNDS = 10
 LOCAL_EPOCHS = 1
 BATCH_SIZE = 64
@@ -165,9 +165,7 @@ def run_experiment(split, strategy: _core.Strategy, template_state: dict, label:
         orch.run_round(updates, reported_loss=pre_loss)
 
         post_eval = make_model()
-        post_eval.load_state_dict(
-            layers_to_state_dict(orch.global_weights(), template_state)
-        )
+        post_eval.load_state_dict(layers_to_state_dict(orch.global_weights(), template_state))
         post_loss, post_acc = evaluate(post_eval, split.test_loader)
         elapsed = time.perf_counter() - round_start
         print(f"{round_idx:>5} | {post_loss:>9.4f} | {post_acc:>8.3f} | {elapsed:>6.2f}")
@@ -211,7 +209,7 @@ def main() -> None:
     baseline_label = "FedAvg (baseline)"
     baseline = results[baseline_label]
 
-    robust_results = {l: a for l, a in results.items() if l != baseline_label}
+    robust_results = {name: a for name, a in results.items() if name != baseline_label}
     best_label, best_acc = max(robust_results.items(), key=lambda kv: kv[1])
     gap = best_acc - baseline
 
