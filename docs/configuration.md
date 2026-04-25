@@ -18,7 +18,7 @@ VelocityServer(
 |---|---|---|---|
 | `model_id` | `str` | *required* | Hugging Face model identifier (e.g. `meta-llama/Llama-3-8B`) or a local path. |
 | `dataset` | `str` | *required* | Dataset name or local path. Any HF Hub slug works. |
-| `strategy` | [`Strategy`](strategies.md) | `FedAvg()` | Aggregation algorithm (a `FedAvg`, `FedProx`, `FedMedian`, `TrimmedMean`, `Krum`, or `MultiKrum` instance). |
+| `strategy` | [`Strategy`](strategies.md) | `FedAvg()` | Aggregation algorithm (a `FedAvg`, `FedProx`, `FedMedian`, `TrimmedMean`, `Krum`, `MultiKrum`, `Bulyan`, or `GeometricMedian` instance). |
 | `storage` | `str` | `"local://checkpoints"` | Checkpoint storage URI. Supports `local://`, `hf-xet://`, and any fsspec-style scheme your environment can resolve. |
 | `layer_shapes` | `dict[str, int] \| None` | small demo net | Maps layer name → parameter count. Must match the model being trained for real experiments. |
 
@@ -89,6 +89,7 @@ Each strategy is a frozen dataclass; parameters live on the instance. Pass the i
 | `Krum` | `f: int` | *required* | Pick the single closest client by Krum score. Requires `n ≥ 2f + 3` (Blanchard et al., NeurIPS 2017). |
 | `MultiKrum` | `f: int`, `m: int \| None` | `m = n − f` when `None` | Average the `m` lowest-scoring Krum updates. `1 ≤ m ≤ n − f` (El Mhamdi et al., ICML 2018). |
 | `Bulyan` | `f: int`, `m: int \| None` | `m = n − 2f` when `None` | Multi-Krum → trimmed-mean composition. Requires `n ≥ 4f + 3` (El Mhamdi et al., ICML 2018). |
+| `GeometricMedian` | `eps: float`, `max_iter: int` | `eps=1e-6`, `max_iter=3` | RFA Weiszfeld iteration — sample-weighted, 1/2 breakdown point. Defaults match Pillutla et al., IEEE TSP 2022. |
 
 See [Strategies](strategies.md) for when to use each.
 
