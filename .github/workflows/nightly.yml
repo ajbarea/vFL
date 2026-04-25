@@ -25,6 +25,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
+        with:
+          # No git push / fetch / network ops happen later in this job;
+          # leaving GITHUB_TOKEN in `.git/config` after checkout is a
+          # gratuitous credential window. Drop persistence.
+          persist-credentials: false
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -39,7 +44,11 @@ jobs:
           enable-cache: true
 
       - name: Install project with torch + hf extras
-        run: uv sync --extra torch --extra hf
+        # `--no-install-project` skips building velocity-fl during sync.
+        # The next step (`maturin develop --release`) is what we actually
+        # want -- a release build, not the throwaway debug one uv would
+        # otherwise produce. Saves ~10s of Rust compile per run.
+        run: uv sync --extra torch --extra hf --no-install-project
 
       - name: Build Rust extension (release)
         run: uv run maturin develop --release --uv
