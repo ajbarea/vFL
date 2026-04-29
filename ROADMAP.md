@@ -65,9 +65,11 @@ leaderboard data, not standalone infra.
 
 ## Aggregation strategies
 
-Worth porting from phalanx-fl (`intellifl/simulation_strategies/`) — that codebase
-wraps Flower and has production-grade implementations we can reimplement as
-pure Rust kernels. Current vFL has `FedAvg`, `FedProx`, `FedMedian` only.
+vFL ships eight aggregation strategies as pure Rust kernels: `FedAvg`,
+`FedProx`, `FedMedian`, `TrimmedMean`, `Krum`, `MultiKrum`, `Bulyan`,
+`GeometricMedian`. Future work below covers variants and v2 strategies
+not yet implemented; phalanx-fl (`intellifl/simulation_strategies/`)
+remains the reference for any further ports.
 
 These kernels are load-bearing for the perf story, not just Byzantine
 coverage. FedAvg is O(n) in clients; Krum is O(n²); Bulyan stacks Krum
@@ -76,8 +78,6 @@ coordinate. The robust aggregators are algorithmically heavier than
 FedAvg — the Rust-vs-Python gap grows with them. Measure each after
 implementation before quoting speedups.
 
-- **Geometric median / RFA** — Weiszfeld's algorithm, ~50% Byzantine breakdown
-  without explicit thresholding. Natural fit for Rust (iterative, arithmetic-heavy).
 - **ArKrum** (arXiv:2505.17226) — parameter-free Krum that estimates `f` via
   median filtering + SSE segmentation. Removes the "you must know `f` in
   advance" constraint. Good v2 once Krum ships.
@@ -385,6 +385,15 @@ Dated one-liners for shipped roadmap-scale work. Most recent first. The
 commit history and `docs/benchmarks.md` / `docs/convergence.md` are the
 authoritative record; this log is the human index into them.
 
+- **2026-04-25** — Geometric Median (RFA, Pillutla et al. IEEE TSP 2022)
+  via Weiszfeld iteration shipped as the 8th `Strategy`.
+  `Strategy::GeometricMedian { eps, max_iter }` provides sample-weighted
+  aggregation with ~50% Byzantine breakdown (tolerates up to ⌊(n-1)/2⌋
+  malicious clients) without explicit thresholding. Rust kernel in
+  `vfl-core`, PyO3 binding + Python dataclass in `velocity.strategy`,
+  Hypothesis oracle in `tests/strategy_reference.py`. Docs propagated
+  across `docs/cli.md`, `docs/api.md`, `docs/strategies.md`,
+  `docs/configuration.md` (PRs #14, #16).
 - **2026-04-23** — Bulyan Byzantine-robust aggregator
   (`Strategy::Bulyan { f, m }`) shipped as thin orchestration over the
   existing Multi-Krum and Trimmed Mean kernels: Phase 1 picks `m = n - 2f`
