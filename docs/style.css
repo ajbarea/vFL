@@ -280,10 +280,17 @@ body.hero-page .md-content__inner {
   transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
 }
 
+/* research(2026-05): primary CTA visually larger + heavier than secondary,
+   per UX hierarchy convention (LogRocket, Spaced Digital, Nerdcow). Mirrors
+   the orchestrate-triage / kourai-khryseai sister pattern. */
 .hero-buttons .md-button--primary {
   background: var(--vfl-violet) !important;
   border: 1px solid color-mix(in srgb, var(--vfl-violet-light) 50%, transparent) !important;
   color: #fff !important;
+  font-size: 0.92rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  padding: 0.78rem 1.85rem !important;
   box-shadow: 0 6px 22px color-mix(in srgb, var(--vfl-violet) 45%, transparent) !important;
 }
 
@@ -296,6 +303,10 @@ body.hero-page .md-content__inner {
   border: 1px solid rgba(196, 181, 253, 0.35) !important;
   color: var(--vfl-violet-pale) !important;
   background: color-mix(in srgb, var(--vfl-obsidian) 55%, transparent) !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  padding: 0.6rem 1.35rem !important;
   backdrop-filter: blur(6px);
 }
 
