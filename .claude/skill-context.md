@@ -13,7 +13,7 @@ toolchain / path / tooling changes.
 - runner_module: `scripts/dev.py`
 - has: Rust crate, PyO3/maturin native extension; no docker, no frontend
 
-## audit (aj-audit)
+## audit
 
 Full audit = 13 `make` targets, in order:
 
@@ -54,7 +54,7 @@ Warm-cache caveat for the timing matrix: compare `ci` total against the sum of
 Phase-3 + Phase-4 granulars. If `ci` is < 60% of the sum, the granulars are
 warm-cache measurements — flag in the verdict.
 
-## ci_audit (aj-ci-audit)
+## ci_audit
 
 Referenced configs a CI failure can trace to:
 - `pyproject.toml`
@@ -69,7 +69,7 @@ Tool error markers (extend the default grep set):
 
 Expected external PR checks: codecov (codecov/patch, codecov/project via `codecov.xml`), GitGuardian.
 
-## slop_ground_truth (aj-deslop / aj-reslop / aj-docsync)
+## slop_ground_truth
 
 Sources of truth for numeric performance / scale claims:
 
@@ -79,7 +79,7 @@ Sources of truth for numeric performance / scale claims:
 
 Any quantitative perf/scale claim not traceable to one of those is slop.
 
-## scan_scope (aj-deslop / aj-reslop)
+## scan_scope
 
 Skip paths:
 - `target/`, `.venv/`, `venv/`, `node_modules/`, `dist/`, `build/`, `site/`
@@ -94,7 +94,7 @@ Subagent scan-area split:
 - Config/build: `pyproject.toml`, `Cargo.toml`, `Makefile`, `.github/workflows/**`, `zensical.toml`, `.vscode/**`
 - Docs (opt-in): `docs/**/*.md`
 
-## docs_site (aj-docs-site)
+## docs_site
 
 - config: `zensical.toml`
 - workflow: `.github/workflows/docs.yml`
