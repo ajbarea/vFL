@@ -6,7 +6,7 @@ truth for *why*.
 
 Shared toolchain-pin rationale (pytest 9.0.3 floor, ruff/ty floors,
 `requires-python = ">=3.11,<3.14"`) lives with the
-[aj-sisters](../.claude/skill-context.md) drift-detection skill — those are
+cross-repo [drift-detection skill](.claude/skill-context.md) — those are
 cross-repo policy, not vFL-specific decisions.
 
 ---
@@ -146,7 +146,7 @@ mainline users' environments.
 
 - **`zensical`** — the docs-site generator. Unversioned floor because the
   site config lives in `zensical.toml` (versioned separately). Same tooling
-  lives in phalanx-fl and kourai-khryseai — aj-sisters audits for drift.
+  lives in phalanx-fl and kourai-khryseai — cross-repo drift audit covers all three.
 
 ### Agent dev
 

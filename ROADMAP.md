@@ -326,7 +326,7 @@ below are wider than they are today.
 - **Public Zensical leaderboard page** — auto-rendered from the
   store. Researchers pick dataset + attack, see the Pareto frontier
   per axis, click into the fingerprint for repro. Depends on the
-  Zensical site (`aj-docs-site` skill) and a stable store schema.
+  Zensical site (`techne:docs-site` skill) and a stable store schema.
 - **Prerequisites** — this section only becomes worth shipping once:
   (a) the aggregation suite includes at least Krum, Multi-Krum,
   Bulyan, Trimmed Mean (so there's something to rank);
