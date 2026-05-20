@@ -62,4 +62,4 @@ Existing slop glossaries (e.g. `_shared/hate-words.md` inside the techne plugin)
 
 ## Why this changed
 
-Skills used to ship in-repo at `.claude/skills/aj-*/SKILL.md` (gitignored, but documented here). The techne plugin migration moved them to a centralized install so all sisters (phalanx-fl, kourai-khryseai, ajbarea.github.io, techne itself, and vFL) share one canonical copy. The old `.claude/skills/` directory is still gitignored locally for backward-compat with anyone running the pre-migration copies, but the canonical surface is now `~/.claude/plugins/cache/techne/techne/<sha>/skills/`.
+Skills used to ship in-repo at `.claude/skills/aj-*/SKILL.md` (gitignored, but documented here). The techne plugin migration moved them to a centralized install so every linked sister repo (listed in `~/.claude/techne.toml`) shares one canonical copy. The old `.claude/skills/` directory is still gitignored locally for backward-compat with anyone running the pre-migration copies, but the canonical surface is now `~/.claude/plugins/cache/techne/techne/<sha>/skills/`.

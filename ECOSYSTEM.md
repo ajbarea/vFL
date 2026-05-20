@@ -146,7 +146,7 @@ mainline users' environments.
 
 - **`zensical`** — the docs-site generator. Unversioned floor because the
   site config lives in `zensical.toml` (versioned separately). Same tooling
-  lives in phalanx-fl and kourai-khryseai — cross-repo drift audit covers all three.
+  across every Python sister — cross-repo drift audit covers every linked sister.
 
 ### Agent dev
 
